@@ -22,7 +22,13 @@
 <script type="text/javascript" src="man.js"></script>
 <script type="text/javascript">
 
+var box = document.querySelector("#box");
+box.addEventListener("mouseover", function () {
+    man.transition(box, {scale: "2"});
+});
+
 </script>
 
 </body>
 </html>
+
