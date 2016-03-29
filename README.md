@@ -8,3 +8,20 @@ mine animation library for js
 3. js-only animation to support multi-object, stagged animation and full-featured monitor callback
 4. optimized performace
 5. building tool for web game
+
+# API
+
+man.transit(node, target);
+
+node: DOM node
+
+target: {
+    key: value,
+}
+
+reserved keys:
+
+1. duration: in ms (default 1000)
+2. delay: in ms (default 0)
+3. timing: string (default linear)
+4. end: callback

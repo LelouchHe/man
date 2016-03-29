@@ -24,7 +24,17 @@
 
 var box = document.querySelector("#box");
 box.addEventListener("mouseover", function () {
-    man.transition(box, {scale: "2"});
+    man.transit(box, {
+        opacity: "0.5",
+        backgroundColor: "blue"
+    });
+});
+
+box.addEventListener("mouseout", function () {
+    man.transit(box, {
+        opacity: "",
+        backgroundColor: ""
+    });
 });
 
 </script>
