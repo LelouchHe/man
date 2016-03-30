@@ -25,3 +25,9 @@ reserved keys:
 2. delay: in ms (default 0)
 3. timing: string (default linear)
 4. end: callback
+
+# revision
+
+`man.transit(node, target)` can't be easily queued to accomplish squence animation.
+
+maybe we can do like `m(node).transit(target).transit(target)`.
