@@ -31,3 +31,18 @@ reserved keys:
 `man.transit(node, target)` can't be easily queued to accomplish squence animation.
 
 maybe we can do like `m(node).transit(target).transit(target)`.
+
+# another thought
+
+even if we use `m(node)`, we still need to maintain knid of dict map from node to its own queue, so useless to change the interface.
+
+you can just
+
+    man.transit(node1, target1).transit(node2, target2); // squence
+
+    // if node1 != node2, this happens at same time
+    // or, this just like squence above
+    man.transit(node1, target1);
+    man.transit(node2, target2);
+
+so this gives user more flexibility. I will stick to this.

@@ -10,6 +10,7 @@
     width: 100px;
     height: 100px;
     position: absolute;
+    left: 10px;
 }
 
 </style>
@@ -22,18 +23,26 @@
 <script type="text/javascript" src="man.js"></script>
 <script type="text/javascript">
 
+man.def("end", function () {
+    console.log("end of animtion");
+});
+
 var box = document.querySelector("#box");
 box.addEventListener("mouseover", function () {
     man.transit(box, {
         opacity: "0.5",
-        backgroundColor: "blue"
+        backgroundColor: "blue",
+        left: "50px",
+        rotate: "1080deg"
     });
 });
 
 box.addEventListener("mouseout", function () {
     man.transit(box, {
         opacity: "",
-        backgroundColor: ""
+        backgroundColor: "",
+        left: "",
+        transform: ""
     });
 });
 

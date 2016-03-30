@@ -2,18 +2,59 @@
 
 var man = window.man = {};
 
+var optionKeys = {
+    duration: {
+        type: "number",
+        def: 1000
+    },
+    delay: {
+        type: "number",
+        def: 0
+    },
+    timing: {
+        type: "string",
+        def: "linear"
+    },
+    end: {
+        type: "function",
+        def: function(){}
+    },
+    downgrade: {
+        type: "boolean",
+        def: false
+    }
+};
+
 var transformKeys = [
     "matrix", "translate", "scale", "rotate", "skew",
 ];
 
+/*
+
+    key: node
+    value: {
+        cssValue: string (used in assignment)
+    }
+
+*/
+var map = {};
+
+man.def = function (key, value) {
+    if (!(key in optionKeys)) {
+       return; 
+    }
+
+    var attr = optionKeys[key];
+    if (typeof value != attr.type) {
+        return;
+    }
+
+    attr.def = value;
+};
+
 man.transit = function (node, target) {
-    var options = {};
-    
-    options.duration = checkOption(target, "duration", "number", 1000);
-    options.delay = checkOption(target, "delay", "number", 0);
-    options.timing = checkOption(target, "timing", "string", "linear");
-    options.end = checkOption(target, "end", "function", null);
-    
+    var options = checkOptions(target);
+
     node.style.transition = buildTransition(options, target);
     for (var key in target) {
         if (transformKeys.indexOf(key) != -1) {
@@ -35,14 +76,21 @@ man.transit = function (node, target) {
     node.addEventListener("transitionend", transitionEndHandler);
 };
 
-function checkOption(target, key, type, def) {
-    if (!(key in target)) {
-        return def;
+function checkOptions(target) {
+    var options = {};
+    for (var key in optionKeys) {
+        var attr = optionKeys[key];
+        if (!(key in target)) {
+            options[key] = attr.def;
+        }
+        options[key] = checkOption(target[key], attr.type, attr.def);
+        delete target[key];
     }
-    
-    var value = target[key];
-    delete target[key];
-    
+
+    return options;
+}
+
+function checkOption(value, type, def) {
     if (typeof value != type) {
         return def;
     }
