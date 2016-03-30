@@ -102,25 +102,28 @@ man.def = function (key, value) {
 man.transit = function (node, target) {
     var options = checkOptions(target);
 
-    node.style[transitionStyle] = buildTransition(options, target);
+    var cssValues = {};
+
+    cssValues[transitionStyle] = buildTransition(options, target);
     for (var key in target) {
         if (transformKeys.indexOf(key) != -1) {
-            node.style[transformStyle] = key + "(" + target[key] + ")";
+            cssValues[transformStyle] = key + "(" + target[key] + ")";
         } else if (key in document.body.style) {
-            node.style[key] = target[key];
+            cssValues[key] = target[key];
         }
     }
 
-    function transitionEndHandler() {
-        node.removeEventListener(transitionEndEvent, transitionEndHandler);
-        node.style[transitionStyle] = "";
-        
-        if (options.end != null) {
-            options.end();
-        }
+    if (!map[node]) {
+        map[node] = [];
+    }
+    var queue = map[node];
+    queue.push({options: options, cssValues: cssValues, jsValues: []});
+
+    if (queue.length == 1) {
+        run(node, queue);
     }
 
-    node.addEventListener(transitionEndEvent, transitionEndHandler);
+    return man;
 };
 
 function checkOptions(target) {
@@ -160,6 +163,45 @@ function buildTransition(options, target) {
     }
     
     return transitions.join(",");
+}
+
+function run(node, queue) {
+    if (queue.length == 0) {
+        delete queue[node];
+        return;
+    }
+
+    var q = queue[0];
+
+    var count = 0;
+    node.style[transitionStyle] = q.cssValues[transitionStyle];
+    for (var key in q.cssValues) {
+        if (key == transitionStyle) {
+            continue;
+        }
+
+        node.style[key] = q.cssValues[key];
+        count++;
+    }
+
+    function transitionEndHandler(evt) {
+        count--;
+        if (count > 0) {
+            return;
+        }
+
+        node.removeEventListener(transitionEndEvent, transitionEndHandler);
+        node.style[transitionStyle] = "";
+        
+        if (q.options.end != null) {
+            q.options.end();
+        }
+
+        queue.shift();
+        run(node, queue);
+    }
+
+    node.addEventListener(transitionEndEvent, transitionEndHandler);
 }
 
 function convertCssToStyle(name) {
