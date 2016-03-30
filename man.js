@@ -182,6 +182,10 @@ man.transit = function (nodes, targets) {
 
     var qs = [];
     for (var i = 0; i < nodes.length; i++) {
+        if (nodes[i].manq != qs) {
+            clear(nodes[i].manq, nodes[i]);
+            nodes[i].manq = qs;
+        }
         qs.push(buildQueueItem(nodes[i], targets[i]));
     }
 
@@ -197,7 +201,6 @@ man.transit = function (nodes, targets) {
 function buildQueueItem(node, target) {
     var transitions = [];
     var transforms = [];
-    var hasTransform = false;
     var cssValues = {};
     var jsValues = {};
 
@@ -251,18 +254,51 @@ function checkOption(value, type, def) {
     return value;
 }
 
-function run(queue) {
-    if (queue.length == 0) {
+// node: clear all of this "node" in q
+// or, clear all nodes 
+function clear(queue, node) {
+    if (!queue) {
         return;
     }
 
-    runOne(queue[0], function () {
-        queue.shift();
-        run(queue);
+    for (var i = 0; i < queue.length; i++) {
+        if (!queue[i]) {
+            continue;
+        }
+
+        if (node && node != queue[i].options.node) {
+            continue;
+        }
+
+        var n = queue[i].options.node;
+        n.manq = null;
+        delete queue[i];
+    }
+}
+
+function run(queue, start) {
+    if (!start) {
+        start = 0;
+    }
+
+    if (start >= queue.length) {
+        clear(queue);
+        return;
+    }
+
+    runOne(queue[start], function () {
+        run(queue, ++start);
     });
 }
 
 function runOne(q, end) {
+    if (!q) {
+        if (end) {
+            end();
+        }
+        return;
+    }
+
     if ((isCssAvailable() || q.options.nojs)
             && !q.options.debugjs) {
         runOneCss(q, end);

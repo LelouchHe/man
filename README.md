@@ -78,3 +78,8 @@ issue:
 4. IE8/9, android 4.3: no support `requestAnimationFrame`  (use `setTimeout`)
 5. IE8: no support ECMA5, like "Array.indexOf" (partially fixed)
 6. IE8: no support `addEventListener` (don't use this when `transition` is unavailable)
+
+# issue
+
+1. no idae why "Object doesn't support attachEvent" happens on IE
+2. how seperate calls affect each other (add `.manq` to dom node in animation to determine which queue it's in so we can cancel that when several animations conflict)
