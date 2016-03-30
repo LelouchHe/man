@@ -1,16 +1,29 @@
+<!DOCTYPE html>
 <html>
 <head>
 <title>Test</title>
 
 <style type="text/css">
 
-#box {
+.playground {
+    height: 300px;
+}
+
+.box {
     display: inline-block;
-    background: green;
     width: 100px;
     height: 100px;
     position: absolute;
     left: 10px;
+}
+
+#box1 {
+    background-color: green;
+}
+
+#box2 {
+    background-color: red;
+    top: 150px;
 }
 
 </style>
@@ -18,31 +31,78 @@
 </head>
 <body>
 
-<div id="box"></div>
+<div class="playground">
+<div id="box1" class="box"></div>
+<div id="box2" class="box"></div>
+</div>
+
+<button type="button" id="start">start</button>
+<button type="button" id="reset">reset</button>
 
 <script type="text/javascript" src="man.js"></script>
 <script type="text/javascript">
 
-var box = document.querySelector("#box");
-box.addEventListener("mouseover", function () {
-    man.transit(box, {
-        opacity: "0.5",
-        backgroundColor: "blue",
-    });
-    man.transit(box, {
-        left: "50px",
-        rotate: "1080deg"
-    });
+var box1 = document.querySelector("#box1");
+var box2 = document.querySelector("#box2");
+
+var start = document.querySelector("#start");
+
+addEventListener(start, "click", function () {
+    man.transit(
+        box1,
+        [
+        {
+            opacity: "0.5",
+            backgroundColor: "blue",
+            left: "100px",
+            rotate: "1200deg",
+        },
+        {
+            left: "150px",
+            rotate: "1100deg",
+        },
+        {
+            backgroundColor: "yellow"
+        }
+        ]
+    );
+
+    man.transit(
+        box2,
+        {
+            left: "150px",
+            rotate: "1100deg",
+            scale: "2, 1",
+        }
+    );
 });
 
-box.addEventListener("mouseout", function () {
-    man.transit(box, {
-        opacity: "",
-        backgroundColor: "",
-        left: "",
-        transform: ""
-    });
+addEventListener(reset, "click", function () {
+    man.transit(
+        [box1, box2],
+        [
+        {
+            opacity: "",
+            backgroundColor: "",
+            left: "",
+            transform: "",
+        },
+        {
+            left: "",
+            transform: "",
+        }
+        ]
+    );
 });
+
+function addEventListener(node, name, func) {
+    if (node.addEventListener) {
+        node.addEventListener(name, func);
+    } else {
+        node.attachEvent("on" + name, func);
+    }
+}
+
 
 </script>
 

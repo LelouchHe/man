@@ -46,3 +46,35 @@ you can just
     man.transit(node2, target2);
 
 so this gives user more flexibility. I will stick to this.
+
+# final API
+
+    man.transit(node, target);
+
+    man.transit([node1, node2], [target1, target2]);
+
+    man.transit(node, [target1, target2]);
+    man.transit([node1, node2], target)
+
+    man.transit([node], [target1, target2]); // nodes can be single
+    man.transit(node, [target]); // targets can be single
+
+notice, all in `man.transit` are queued, if you want parellel, you just call `man.transit` seperately:
+
+    man.transit(node1, target1);
+    man.transit(node2, target2);
+
+I provided `option` for `man.transit` before, but it's a bad design since user can combine the single queue calls to fullfill their need.
+
+# support browser
+
+IE8+, other modern browser
+
+issue:
+
+1. IE8/9, Opera mini: no support `transition`
+2. IE8, Opera mini: no support `transform2D`
+3. IE8/9, Opera mini: no support `transform3D`
+4. IE8/9, android 4.3: no support `requestAnimationFrame`  (use `setTimeout`)
+5. IE8: no support ECMA5, like "Array.indexOf" (partially fixed)
+6. IE8: no support `addEventListener` (don't use this when `transition` is unavailable)
