@@ -19,9 +19,16 @@ var optionKeys = {
         type: "function",
         def: function(){}
     },
-    downgrade: {
+    // whether to use js to mock transition/transform
+    nojs: {
         type: "boolean",
-        def: false
+        def: true
+    },
+    // whether to queue squence calls on same node
+    // if false, those will happen at same time
+    queue: {
+        type: "boolean",
+        def: true
     }
 };
 
@@ -34,10 +41,50 @@ var transformKeys = [
     key: node
     value: {
         cssValue: string (used in assignment)
+        jsValue: [number ... ["unit"] = unit] (used in downgrade)
     }
 
 */
 var map = {};
+
+var transitionStyle = "transition";
+var transitionEndEvent = "transitionend";
+var transformStyle = "transform";
+initPrefix();
+
+function initPrefix() {
+    var prefix = getStylePrefix(transitionStyle);
+    if (prefix == null) {
+        transitionStyle = "";
+        transitionEndEvent = "";
+    } else if (prefix != "") {
+        transitionStyle = "-" + prefix + "-" + transitionStyle;
+        transitionEndEvent = prefix + "TransitionEnd";
+    }
+
+    prefix = getStylePrefix(transformStyle);
+    if (prefix == null) {
+        transformStyle = "";
+    } else if (prefix != "") {
+        transformStyle = "-" + prefix + "-" + transformStyle;
+    }
+}
+
+function getStylePrefix(style) {
+    var prefixes = ["webkit", "moz", "o", "ms"];
+    if (style in document.body.style) {
+        return "";
+    }
+
+    for (var i = 0; i < prefixes.length; i++) {
+        var prefixStyle = "-" + prefixes[i] + "-" + style;
+        if (prefixStyle in document.body.style) {
+            return prefixes[i];
+        }
+    }
+
+    return null;
+}
 
 man.def = function (key, value) {
     if (!(key in optionKeys)) {
@@ -55,25 +102,25 @@ man.def = function (key, value) {
 man.transit = function (node, target) {
     var options = checkOptions(target);
 
-    node.style.transition = buildTransition(options, target);
+    node.style[transitionStyle] = buildTransition(options, target);
     for (var key in target) {
         if (transformKeys.indexOf(key) != -1) {
-            node.style.transform = key + "(" + target[key] + ")";
+            node.style[transformStyle] = key + "(" + target[key] + ")";
         } else if (key in document.body.style) {
             node.style[key] = target[key];
         }
     }
 
     function transitionEndHandler() {
-        node.removeEventListener("transitionend", transitionEndHandler);
-        node.style.transition = "";
+        node.removeEventListener(transitionEndEvent, transitionEndHandler);
+        node.style[transitionStyle] = "";
         
         if (options.end != null) {
             options.end();
         }
     }
 
-    node.addEventListener("transitionend", transitionEndHandler);
+    node.addEventListener(transitionEndEvent, transitionEndHandler);
 };
 
 function checkOptions(target) {
