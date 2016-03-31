@@ -58,7 +58,7 @@ var optionKeys = {
 };
 
 var transformKeys = [
-    "matrix", "translate", "scale", "rotate", "skew",
+    "transform", "matrix", "translate", "scale", "rotate", "skew",
 ];
 
 var transitionStyle = "transition";
@@ -163,15 +163,12 @@ function buildQueueItem(node, target) {
     var postfix = " " + options.duration + "ms " + options.timing + " " + options.delay + "ms";
     
     for (var key in target) {
-        if (key == "transform") {
-            transforms.push(target[key]);
-            buildJsValueFromTransform(jsValues, key, target[key]);
-        } else if (transformKeys.indexOf(key) != -1) {
-            transforms.push(key + "(" + target[key] + ")");
-            jsValues[key] = buildJsValue(key, target[key]);
+        if (transformKeys.indexOf(key) != -1) {
+            transforms.push(buildCssValueFromTransform(key, target[key]));
+            updateJsValueFromTransform(jsValues, key, target[key]);
         } else if (key in document.body.style) {
             transitions.push(convertStyleToCss(key) + postfix);
-            cssValues[key] = target[key];
+            cssValues[key] = buildCssValue(key, target[key]);
             jsValues[key] = buildJsValue(key, target[key]);
         }
     }
@@ -186,14 +183,31 @@ function buildQueueItem(node, target) {
     return {options: options, cssValues: cssValues, jsValues: jsValues};
 }
 
-function buildJsValueFromTransform(jsValues, key, value) {
-    if (key != "transform" || value == "") {
-        return null;
+// return legal css string for transform
+function buildCssValueFromTransform(key, value) {
+    if (key == "transform") {
+        return value;
+    }
+    
+    return key + "(" + value + ")";
+}
+
+function buildCssValue(key, value) {
+    return value;
+}
+
+// update jsValues
+function updateJsValueFromTransform(jsValues, key, value) {
+    if (key != "transform") {
+        jsValues[key] = buildJsValue(key, value);
+        return;
+    } else if (value == "") {
+        return;
     }
 
     var vs = value.split(/(\([^\)]+\))/);
     if (vs.length % 2 == 0) {
-        return null;
+        return;
     }
 
     for (var i = 0; i + 1 < vs.length; i += 2) {
