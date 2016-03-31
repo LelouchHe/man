@@ -614,6 +614,15 @@ function runOneCss(q, end) {
     }
 }
 
+var raf = window.requestAnimationFrame
+    || window.webkitRequestAnimationFrame
+    || window.mozRequestAnimationFrame
+    || window.oRequestAnimationFrame
+    || window.msRequestAnimationFrame
+    || function (callback) {
+        window.setTimeout(callback, 16);
+    };
+
 function runOneJs(q, end) {
 }
 
@@ -647,6 +656,17 @@ function fill(arr, value, length) {
         arr.push(value);
         len++;
     }
+}
+
+function getComputedStyle(node, key) {
+    key = convertStyleToCss(key);
+    if (window.getComputedStyle) {
+        return window.getComputedStyle(node).getPropertyValue(key);
+    } else if (node.currentStyle) {
+        return window.currentStyle[key];
+    }
+
+    return "";
 }
 
 })();
