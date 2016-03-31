@@ -83,3 +83,4 @@ issue:
 
 1. no idae why "Object doesn't support attachEvent" happens on IE
 2. how seperate calls affect each other (add `.manq` to dom node in animation to determine which queue it's in so we can cancel that when several animations conflict)
+3. don't use `transform` directly, which might be a problem is `transform: ""`
