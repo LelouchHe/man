@@ -152,41 +152,20 @@ man.transit = function (nodes, targets) {
     }
 */
 function buildQueueItem(node, target) {
-    var transitions = [];
-    var transforms = [];
-    var cssValues = {};
-    var jsValues = {};
-
     var options = checkOptions(target);
     options.node = node;
     
-    var postfix = " " + options.duration + "ms " + options.timing + " " + options.delay + "ms";
-    
-    for (var key in target) {
-        if (transformKeys.indexOf(key) != -1) {
-            updateCssTransforms(transforms, key, target[key]);
-            updateJsValueFromTransform(jsValues, key, target[key]);
-        } else if (key in document.body.style) {
-            transitions.push(convertStyleToCss(key) + postfix);
-            updateCssValue(cssValues, key, target[key]);
-            updateJsValue(jsValues, key, target[key]);
-        }
-    }
-
-    if (transforms.length > 0) {
-        transitions.push("transform" + postfix);
-        cssValues[transformStyle] = transforms.join(" ");
-    }
-
-    cssValues[transitionStyle] = transitions.join(",");
-    
-    return {options: options, cssValues: cssValues, jsValues: jsValues};
+    return {options: options, target: normalizeInput(target)};
 }
 
 // puer number: z-index, opacity, matrix, scale
 // "deg": rotate, skew
 // "px": most of others
 function defaultUnit(key) {
+    if (/[Cc]olor/.test(key)) {
+        return "";
+    }
+
     switch (key) {
         case "rotate":
         case "skew":
@@ -203,123 +182,36 @@ function defaultUnit(key) {
     }
 }
 
-function updateCssTransforms(transforms, key, value) {
-    var transformValue = buildCssValueFromTransform(key, value);
-    if (transformValue != null) {
-        transforms.push(transformValue);
+// key: {target: t | [t], unit: u | [u], gen?}
+function normalizeInput(target) {
+    var input = {};
+    for (var key in target) {
+        updateInput(input, key, target[key]);
     }
+
+    return input;
 }
 
-function updateCssValue(cssValues, key, value) {
-    var cssValue = buildCssValue(key, value);
-    if (cssValue != null) {
-        cssValues[key] = cssValue;
-    }
-}
-
-// build css string
-// return legal css string for transform
-function buildCssValueFromTransform(key, value) {
-    // transform: need to be legal string
+function updateInput(input, key, value) {
     if (key == "transform") {
-        return value;
-    }
-
-    if (typeof value == "string") {
-        value = value.trim();
-        if (value == "") {
-            return "";
-        }
-        value = value.replace(/^[\(\[]|[\)\]]$/g, "");
-        return key + "(" + value + ")";
-    }
-
-    return buildCssValue(key, value);
-}
-
-function buildCssValue(key, value) {
-    if (typeof value == "string") {
-        value = value.trim().replace(/^[\(\[]|[\)\]]$/g, "").split(",");
-    }
-
-    if (typeof value == "number") {
-        return buildCssValueFromNumbers(key, value);
-    } else if (Array.isArray(value)) {
-        return buildCssValueFromArray(key, value);
-    } else {
-        return null;
-    }
-}
-
-function buildCssValueFromNumbers(key, values, unit) {
-    if (typeof values == "number") {
-        values = [values];
-    }
-
-    unit = unit || defaultUnit(key);
-
-    var nums = [];
-    for (var i = 0; i < values.length; i++) {
-        nums.push(values[i] + unit);
-    }
-
-    if (transformKeys.indexOf(key) != -1) {
-        return key + "(" + nums.join(",") + ")";
-    } else {
-        return nums.join(" ");
-    }
-}
-
-function buildCssValueFromArray(key, values) {
-    if (/[Cc]olor/.test(key)) {
-        return buildCssValueFromColor(key, values);
-    }
-
-    var unit = defaultUnit(key);
-    var nums = [];
-    for (var i = 0; i < values.length; i++) {
-        var value = values[i];
-        if (typeof value == "string") {
-            var vs = value.trim().split(/(px|deg)$/);
-            if (vs.length == 3) {
-                unit = vs[1];
-            }
-        }
-
-        // FIXME: parseFloat("") doesn't mean "0"
-        nums.push(parseFloat(value) || 0);
-    }
-
-    return buildCssValueFromNumbers(key, nums, unit);
-}
-
-function buildCssValueFromColor(key, values) {
-    if (values.length == 1) {
-        values = values[0];
-        if (typeof values == "string") {
-            return values;
-        }
-    } else if (values.length != 3) {
-        return null;
-    }
-
-    return formatColorString(values);
-}
-
-// build js num value
-// update jsValues
-function updateJsValue(jsValues, key, value) {
-    var jsValue = buildJsValue(key, value);
-    if (jsValue != null) {
-        jsValues[key] = jsValue;
-    }
-}
-
-function updateJsValueFromTransform(jsValues, key, value) {
-    if (key != "transform") {
-        jsValues[key] = buildJsValue(key, value);
+        updateInputFromTransform(input, key, value);
         return;
-    } else if (value == "") {
+    }
+
+    var v = buildInput(key, value);
+    if (v != null) {
+        input[key] = v;
+    }
+}
+
+function updateInputFromTransform(input, key, value) {
+    if (typeof value != "string") {
+        return;
+    }
+
+    value = value.trim();
+    if (value == "") {
+        input["transform"] = "";
         return;
     }
 
@@ -331,76 +223,60 @@ function updateJsValueFromTransform(jsValues, key, value) {
     for (var i = 0; i + 1 < vs.length; i += 2) {
         var k = vs[i].trim();
         var v = vs[i + 1].trim();
-        updateJsValue(jsValues, k, v);
+        updateInput(input, k, v);
     }
 }
 
-function buildJsValue(key, value) {
+function buildInput(key, value) {
     if (typeof value == "string") {
         value = value.trim().replace(/^[\(\[]|[\)\]]$/g, "").split(",");
     }
 
     if (typeof value == "number") {
-        return buildJsValueFromNumber(key, value);
+        return buildInputFromNumber(key, value);
     } else if (Array.isArray(value)) {
-        return buildJsValueFromArray(key, value);
+        return buildInputFromArray(key, value);
     } else {
         return null;
     }
 }
 
-function buildJsValueFromNumber(key, value, unit) {
+// value: n | [ns]
+function buildInputFromNumber(key, value, unit) {
     return {
         target: value,
-        unit: unit || defaultUnit(key),
-        gen: function (v, u) {
-            return v + u;
-        }
+        unit: unit || defaultUnit(key)
     };
 }
 
-// array item:
-// 1. color: #rrggbb, green
-// 2. number with optional unit
-function buildJsValueFromArray(key, values) {
+function buildInputFromArray(key, values) {
     if (/[Cc]olor/.test(key)) {
-        return buildJsValueFromColor(key, values);
+        return buildInputFromColor(key, values);
     }
 
     var unit = defaultUnit(key);
+    var units = [];
     var nums = [];
     for (var i = 0; i < values.length; i++) {
         var value = values[i];
         if (typeof value == "string") {
-            var vs = value.trim().split(/(px|deg)$/);
+            var vs = value.trim().split(/(px|deg|%|em)$/);
             if (vs.length == 3) {
                 unit = vs[1];
+            } else {
+                unit = defaultUnit(key);
             }
         }
 
         // FIXME: "" doesn't mean "0"
         nums.push(parseFloat(value) || 0);
+        units.push(unit);
     }
 
-    if (nums.length == 1) {
-        return buildJsValueFromNumber(key, nums[0], unit);
-    }
-
-    return {
-        target: nums,
-        unit: unit,
-        gen: function (ns, unit) {
-            var vs = [];
-            for (var i = 0; i < ns.length; i++) {
-                vs.push(ns[i] + unit);
-            }
-
-            return "(" + vs.join(",") + ")";
-        }
-    };
+    return buildInputFromNumber(key, nums, units);
 }
 
-// "" has a special value
+// FIXME: "" should reset, not being black
 var colorMap = {
     "": "#ffffff",
     "aliceblue": "#f0f8ff",
@@ -547,7 +423,7 @@ var colorMap = {
 
 // single: "#rrggbb", "green"
 // 3items: ["rr", "gg", "bb"], [rr, gg, bb]
-function buildJsValueFromColor(key, values) {
+function buildInputFromColor(key, values) {
     if (values.length != 1 && values.length != 3) {
         return null;
     }
@@ -578,28 +454,7 @@ function buildJsValueFromColor(key, values) {
         }
     }
 
-    return {
-        target: nums,
-        unit: "",
-        gen: formatColorString
-    };
-}
-
-function formatColorString(nums) {
-    if (nums.length != 3) {
-        return "";
-    }
-
-    var value = "#";
-    for (var i = 0; i < nums.length; i++) {
-        var v = parseInt(nums[i]).toString(16);
-        if (v.length == 1) {
-            v = "0" + v;
-        }
-        value += v;
-    }
-
-    return value;
+    return buildInputFromNumber(key, nums);
 }
 
 function checkOptions(target) {
@@ -682,17 +537,19 @@ function runOneCss(q, end) {
 
     var count = 0;
 
+    var styles = buildStyles(q);
+
     // "" is not allowed in node.style in IE8
     if (isTransitionAvailable()) {
-        node.style[transitionStyle] = q.cssValues[transitionStyle];
+        node.style[transitionStyle] = styles[transitionStyle];
     }
 
-    for (var key in q.cssValues) {
+    for (var key in styles) {
         if (key == transitionStyle) {
             continue;
         }
 
-        node.style[key] = q.cssValues[key];
+        node.style[key] = styles[key];
         count++;
     }
 
@@ -724,6 +581,88 @@ function runOneCss(q, end) {
         count = 1;
         transitionEndHandler();
     }
+}
+
+function buildStyles(q) {
+    var options = q.options;
+    var target = q.target;
+
+    var postfix = " " + options.duration + "ms " + options.timing + " " + options.delay + "ms";
+
+    var style = {};
+
+    var transitions = [];
+    var transforms = [];
+    for (var key in target) {
+        if (transformKeys.indexOf(key) != -1) {
+            transforms.push(buildStyle(key, target[key]));
+        } else if (key in document.body.style) {
+            transitions.push(convertStyleToCss(key) + postfix);
+            style[key] = buildStyle(key, target[key]);
+        }
+    }
+
+    if (transforms.length > 0) {
+        transitions.push("transform" + postfix);
+        style[transformStyle] = transforms.join(" ");
+    }
+
+    style[transitionStyle] = transitions.join(",");
+
+    return style;
+}
+
+function buildStyle(key, value) {
+    // use value.value first, then value.target
+    var target = value.value || value.target;
+    if (/[Cc]olor/.test(key)) {
+        return buildStyleFromColor(key, target);
+    } else if (transformKeys.indexOf(key) != -1) {
+        return buildStyleFromTransform(key, target, value.unit);
+    }
+
+    if (!Array.isArray(target)) {
+        return target + value.unit;
+    }
+
+    var style = [];
+    for (var i = 0; i < target.length; i++) {
+        style.push(target[i] + value.unit[i]);
+    }
+
+    return style.join(",");
+}
+
+function buildStyleFromColor(key, target) {
+    var style = "#";
+    for (var i = 0; i < target.length; i++) {
+        var v = target[i].toString(16);
+        if (v.length == 1) {
+            v = "0" + v;
+        }
+
+        style += v;
+    }
+
+    return style;
+}
+
+function buildStyleFromTransform(key, target, unit) {
+    if (key == "transform") {
+        return "";
+    }
+
+    if (!Array.isArray(target)) {
+        target = [target];
+        unit = [unit];
+    }
+
+    var style = [];
+    for (var i = 0; i < target.length; i++) {
+        style.push(target[i] + unit[i]);
+    }
+
+    return key + "(" + style.join(",") + ")";
 }
 
 var raf = window.requestAnimationFrame
