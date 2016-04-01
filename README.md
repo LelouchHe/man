@@ -85,3 +85,5 @@ issue:
 2. how seperate calls affect each other (add `.manq` to dom node in animation to determine which queue it's in so we can cancel that when several animations conflict)
 3. don't use `transform` directly, which might be a problem is `transform: ""`
 4. hard to compute original style when you set `xxx: ""` (maybe we can just set it, and get css style and set it back?)
+5. `transform` return `matrix` from current styel. don't touch this now.
+6. since unit may differ between user input and node style, no calc here, just use node style as if they're with same unit

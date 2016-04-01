@@ -153,9 +153,242 @@ man.transit = function (nodes, targets) {
 */
 function buildQueueItem(node, target) {
     var options = checkOptions(target);
-    options.node = node;
+    target = normalizeInput(target);
     
-    return {options: options, target: normalizeInput(target)};
+    return {node: node, options: options, target: target};
+}
+
+function normalizeInput(target) {
+    var input = {};
+    for (var key in target) {
+        updateState(input, key, target[key]);
+    }
+
+    return input;
+}
+
+function checkOptions(target) {
+    var options = {};
+    for (var key in optionKeys) {
+        var attr = optionKeys[key];
+        if (!(key in target)) {
+            options[key] = attr.def;
+        }
+        options[key] = checkOption(target[key], attr.type, attr.def);
+        delete target[key];
+    }
+
+    return options;
+}
+
+function checkOption(value, type, def) {
+    if (typeof value != type) {
+        return def;
+    }
+    
+    return value;
+}
+
+// node: clear all of this "node" in q
+// or, clear all nodes 
+function clear(queue, node) {
+    if (!queue) {
+        return;
+    }
+
+    for (var i = 0; i < queue.length; i++) {
+        if (!queue[i]) {
+            continue;
+        }
+
+        if (node && node != queue[i].node) {
+            continue;
+        }
+
+        var n = queue[i].node;
+        n.manq = null;
+        queue[i] = null;
+    }
+}
+
+function run(queue, start) {
+    if (!start) {
+        start = 0;
+    }
+
+    if (start >= queue.length) {
+        clear(queue);
+        return;
+    }
+
+    runOne(queue[start], function () {
+        run(queue, ++start);
+    });
+}
+
+function runOne(q, end) {
+    if (!q) {
+        if (end) {
+            end();
+        }
+        return;
+    }
+
+    if ((isCssAvailable() || q.options.nojs)
+            && !q.options.debugjs) {
+        runOneCss(q, end);
+    } else {
+        runOneJs(q, end);
+    }
+}
+
+function runOneCss(q, end) {
+    var node = q.node;
+
+    var count = 0;
+
+    var styles = buildStyles(q);
+
+    // "" is not allowed in node.style in IE8
+    if (isTransitionAvailable()) {
+        node.style[transitionStyle] = styles[transitionStyle];
+    }
+
+    for (var key in styles) {
+        if (key == transitionStyle) {
+            continue;
+        }
+
+        node.style[key] = styles[key];
+        count++;
+    }
+
+    // transitionEnd for every property
+    function transitionEndHandler() {
+        count--;
+        if (count > 0) {
+            return;
+        }
+
+        if (isTransitionAvailable()) {
+            node.removeEventListener(transitionEndEvent, transitionEndHandler);
+            node.style[transitionStyle] = "";
+        }
+        
+        if (q.options.end) {
+            q.options.end();
+        }
+        
+        if (end) {
+            end();
+        }
+    }
+
+    // no support transition, no addEventListener
+    if (isTransitionAvailable()) {
+        node.addEventListener(transitionEndEvent, transitionEndHandler);
+    } else {
+        count = 1;
+        transitionEndHandler();
+    }
+}
+
+var raf = window.requestAnimationFrame
+    || window.webkitRequestAnimationFrame
+    || window.mozRequestAnimationFrame
+    || window.oRequestAnimationFrame
+    || window.msRequestAnimationFrame
+    || function (callback) {
+        window.setTimeout(callback, 16);
+    };
+
+function runOneJs(q, end) {
+    var node = q.node;
+    var options = q.options;
+    var target = q.target;
+
+    var state = {};
+    for (var key in target) {
+        updateState(state, key, getComputedStyle(node, key));
+    }
+
+    var startTime = (new Date()).getTime();
+    var queue = node.manq;
+
+    function loop() {
+        if (node.manq != queue) {
+            return;
+        }
+
+        var now = (new Date()).getTime();
+        var passed = now - startTime;
+        updateStyles(q, state, passed);
+
+        if (passed >= options.duration) {
+            if (end) {
+                end();
+            }
+            return;
+        }
+
+        raf(loop);
+    }
+
+    loop();
+}
+
+function updateStyles(q, state, passed) {
+    var node = q.node;
+    var target = q.target;
+    var duration = q.options.duration;
+    var timing = q.options.timing;
+
+    if (passed > duration) {
+        passed = duration;
+    }
+
+    for (var key in state) {
+        // FIXME: transform return matrix
+        if (!(key in target) || transformKeys.indexOf(key) != -1) {
+            continue;
+        }
+
+        var starts = state[key].target;
+        var lasts = target[key].target;
+        if (passed > duration) {
+            target[key].value = lasts;
+            continue;
+        }
+
+        var values = [];
+
+        for (var i = 0; i < starts.length; i++) {
+            values.push(updateValue(
+                            starts[i],
+                            lasts[i],
+                            duration,
+                            passed,
+                            timing));
+        }
+
+        target[key].value = values;
+    }
+
+    var styles = buildStyles(q);
+
+    for (var key in styles) {
+        if (key == transitionStyle) {
+            continue;
+        }
+
+        node.style[key] = styles[key];
+    }
+}
+
+// FIXME: linear for test
+function updateValue(start, last, duration, passed, timing) {
+    var p = passed / duration;
+    return (1 - p) * start + p * last;
 }
 
 // puer number: z-index, opacity, matrix, scale
@@ -183,75 +416,78 @@ function defaultUnit(key) {
 }
 
 // key: {target: t | [t], unit: u | [u], gen?}
-function normalizeInput(target) {
-    var input = {};
-    for (var key in target) {
-        updateInput(input, key, target[key]);
+function updateState(state, key, value) {
+    var v = buildState(key, value);
+    if (Array.isArray(v)) {
+        for (var i = 0; i < v.length; i++) {
+            if (v[i].value != null) {
+                state[v[i].key] = v[i].value;
+            }
+        }
+    } else if (v != null) {
+        state[key] = v;
     }
-
-    return input;
 }
 
-function updateInput(input, key, value) {
+function buildState(key, value) {
     if (key == "transform") {
-        updateInputFromTransform(input, key, value);
-        return;
+        return buildStateFromTransform(key, value);
     }
 
-    var v = buildInput(key, value);
-    if (v != null) {
-        input[key] = v;
-    }
-}
-
-function updateInputFromTransform(input, key, value) {
-    if (typeof value != "string") {
-        return;
-    }
-
-    value = value.trim();
-    if (value == "") {
-        input["transform"] = "";
-        return;
-    }
-
-    var vs = value.split(/(\([^\)]+\))/);
-    if (vs.length % 2 == 0) {
-        return;
-    }
-
-    for (var i = 0; i + 1 < vs.length; i += 2) {
-        var k = vs[i].trim();
-        var v = vs[i + 1].trim();
-        updateInput(input, k, v);
-    }
-}
-
-function buildInput(key, value) {
     if (typeof value == "string") {
-        value = value.trim().replace(/^[\(\[]|[\)\]]$/g, "").split(",");
+        value = value.trim().replace(/^(rgb)?\(|\)$/g, "").split(",");
     }
 
     if (typeof value == "number") {
-        return buildInputFromNumber(key, value);
+        return buildStateFromNumber(key, value);
     } else if (Array.isArray(value)) {
-        return buildInputFromArray(key, value);
+        return buildStateFromArray(key, value);
     } else {
         return null;
     }
 }
 
+function buildStateFromTransform(key, value) {
+    if (typeof value != "string") {
+        return null;
+    }
+
+    value = value.trim();
+    if (value == "") {
+        return "";
+    }
+
+    var vs = value.split(/(\([^\)]+\))/);
+    if (vs.length % 2 == 0) {
+        return null;
+    }
+
+    var transforms = [];
+    for (var i = 0; i + 1 < vs.length; i += 2) {
+        var k = vs[i].trim();
+        var v = vs[i + 1].trim();
+        transforms.push({key: k, value: buildState(k, v)});
+    }
+
+    return transforms;
+}
+
 // value: n | [ns]
-function buildInputFromNumber(key, value, unit) {
+function buildStateFromNumber(key, value, unit) {
+    if (!Array.isArray(value)) {
+        value = [value];
+        unit = [unit || defaultUnit(key)];
+    }
+
     return {
         target: value,
         unit: unit || defaultUnit(key)
     };
 }
 
-function buildInputFromArray(key, values) {
+function buildStateFromArray(key, values) {
     if (/[Cc]olor/.test(key)) {
-        return buildInputFromColor(key, values);
+        return buildStateFromColor(key, values);
     }
 
     var unit = defaultUnit(key);
@@ -273,7 +509,7 @@ function buildInputFromArray(key, values) {
         units.push(unit);
     }
 
-    return buildInputFromNumber(key, nums, units);
+    return buildStateFromNumber(key, nums, units);
 }
 
 // FIXME: "" should reset, not being black
@@ -423,7 +659,7 @@ var colorMap = {
 
 // single: "#rrggbb", "green"
 // 3items: ["rr", "gg", "bb"], [rr, gg, bb]
-function buildInputFromColor(key, values) {
+function buildStateFromColor(key, values) {
     if (values.length != 1 && values.length != 3) {
         return null;
     }
@@ -454,133 +690,7 @@ function buildInputFromColor(key, values) {
         }
     }
 
-    return buildInputFromNumber(key, nums);
-}
-
-function checkOptions(target) {
-    var options = {};
-    for (var key in optionKeys) {
-        var attr = optionKeys[key];
-        if (!(key in target)) {
-            options[key] = attr.def;
-        }
-        options[key] = checkOption(target[key], attr.type, attr.def);
-        delete target[key];
-    }
-
-    return options;
-}
-
-function checkOption(value, type, def) {
-    if (typeof value != type) {
-        return def;
-    }
-    
-    return value;
-}
-
-// node: clear all of this "node" in q
-// or, clear all nodes 
-function clear(queue, node) {
-    if (!queue) {
-        return;
-    }
-
-    for (var i = 0; i < queue.length; i++) {
-        if (!queue[i]) {
-            continue;
-        }
-
-        if (node && node != queue[i].options.node) {
-            continue;
-        }
-
-        var n = queue[i].options.node;
-        n.manq = null;
-        queue[i] = null;
-    }
-}
-
-function run(queue, start) {
-    if (!start) {
-        start = 0;
-    }
-
-    if (start >= queue.length) {
-        clear(queue);
-        return;
-    }
-
-    runOne(queue[start], function () {
-        run(queue, ++start);
-    });
-}
-
-function runOne(q, end) {
-    if (!q) {
-        if (end) {
-            end();
-        }
-        return;
-    }
-
-    if ((isCssAvailable() || q.options.nojs)
-            && !q.options.debugjs) {
-        runOneCss(q, end);
-    } else {
-        runOneJs(q, end);
-    }
-}
-
-function runOneCss(q, end) {
-    var node = q.options.node;
-
-    var count = 0;
-
-    var styles = buildStyles(q);
-
-    // "" is not allowed in node.style in IE8
-    if (isTransitionAvailable()) {
-        node.style[transitionStyle] = styles[transitionStyle];
-    }
-
-    for (var key in styles) {
-        if (key == transitionStyle) {
-            continue;
-        }
-
-        node.style[key] = styles[key];
-        count++;
-    }
-
-    // transitionEnd for every property
-    function transitionEndHandler() {
-        count--;
-        if (count > 0) {
-            return;
-        }
-
-        if (isTransitionAvailable()) {
-            node.removeEventListener(transitionEndEvent, transitionEndHandler);
-            node.style[transitionStyle] = "";
-        }
-        
-        if (q.options.end) {
-            q.options.end();
-        }
-        
-        if (end) {
-            end();
-        }
-    }
-
-    // no support transition, no addEventListener
-    if (isTransitionAvailable()) {
-        node.addEventListener(transitionEndEvent, transitionEndHandler);
-    } else {
-        count = 1;
-        transitionEndHandler();
-    }
+    return buildStateFromNumber(key, nums);
 }
 
 function buildStyles(q) {
@@ -621,10 +731,6 @@ function buildStyle(key, value) {
         return buildStyleFromTransform(key, target, value.unit);
     }
 
-    if (!Array.isArray(target)) {
-        return target + value.unit;
-    }
-
     var style = [];
     for (var i = 0; i < target.length; i++) {
         style.push(target[i] + value.unit[i]);
@@ -636,7 +742,7 @@ function buildStyle(key, value) {
 function buildStyleFromColor(key, target) {
     var style = "#";
     for (var i = 0; i < target.length; i++) {
-        var v = target[i].toString(16);
+        var v = Math.floor(target[i]).toString(16);
         if (v.length == 1) {
             v = "0" + v;
         }
@@ -665,17 +771,6 @@ function buildStyleFromTransform(key, target, unit) {
     return key + "(" + style.join(",") + ")";
 }
 
-var raf = window.requestAnimationFrame
-    || window.webkitRequestAnimationFrame
-    || window.mozRequestAnimationFrame
-    || window.oRequestAnimationFrame
-    || window.msRequestAnimationFrame
-    || function (callback) {
-        window.setTimeout(callback, 16);
-    };
-
-function runOneJs(q, end) {
-}
 
 function isCssAvailable() {
     return isTransitionAvailable() && isTransformAvailable();
