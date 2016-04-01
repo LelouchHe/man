@@ -164,12 +164,12 @@ function buildQueueItem(node, target) {
     
     for (var key in target) {
         if (transformKeys.indexOf(key) != -1) {
-            transforms.push(buildCssValueFromTransform(key, target[key]));
+            updateCssTransforms(transforms, key, target[key]);
             updateJsValueFromTransform(jsValues, key, target[key]);
         } else if (key in document.body.style) {
             transitions.push(convertStyleToCss(key) + postfix);
-            cssValues[key] = buildCssValue(key, target[key]);
-            jsValues[key] = buildJsValue(key, target[key]);
+            updateCssValue(cssValues, key, target[key]);
+            updateJsValue(jsValues, key, target[key]);
         }
     }
 
@@ -183,20 +183,147 @@ function buildQueueItem(node, target) {
     return {options: options, cssValues: cssValues, jsValues: jsValues};
 }
 
+// puer number: z-index, opacity, matrix, scale
+// "deg": rotate, skew
+// "px": most of others
+function defaultUnit(key) {
+    switch (key) {
+        case "rotate":
+        case "skew":
+            return "deg";
+
+        case "matrix":
+        case "scale":
+        case "z-index":
+        case "opacity":
+            return "";
+
+        default:
+            return "px";
+    }
+}
+
+function updateCssTransforms(transforms, key, value) {
+    var transformValue = buildCssValueFromTransform(key, value);
+    if (transformValue != null) {
+        transforms.push(transformValue);
+    }
+}
+
+function updateCssValue(cssValues, key, value) {
+    var cssValue = buildCssValue(key, value);
+    if (cssValue != null) {
+        cssValues[key] = cssValue;
+    }
+}
+
+// build css string
 // return legal css string for transform
 function buildCssValueFromTransform(key, value) {
+    // transform: need to be legal string
     if (key == "transform") {
         return value;
     }
-    
-    return key + "(" + value + ")";
+
+    if (typeof value == "string") {
+        value = value.trim();
+        if (value == "") {
+            return "";
+        }
+        value = value.replace(/^[\(\[]|[\)\]]$/g, "");
+        return key + "(" + value + ")";
+    }
+
+    return buildCssValue(key, value);
 }
 
 function buildCssValue(key, value) {
+    if (typeof value == "string") {
+        value = value.trim().replace(/^[\(\[]|[\)\]]$/g, "").split(",");
+    }
+
+    if (typeof value == "number") {
+        return buildCssValueFromNumbers(key, value);
+    } else if (Array.isArray(value)) {
+        return buildCssValueFromArray(key, value);
+    } else {
+        return null;
+    }
+}
+
+function buildCssValueFromNumbers(key, values, unit) {
+    if (typeof values == "number") {
+        values = [values];
+    }
+
+    unit = unit || defaultUnit(key);
+
+    var nums = [];
+    for (var i = 0; i < values.length; i++) {
+        nums.push(values[i] + unit);
+    }
+
+    if (transformKeys.indexOf(key) != -1) {
+        return key + "(" + nums.join(",") + ")";
+    } else {
+        return nums.join(" ");
+    }
+}
+
+function buildCssValueFromArray(key, values) {
+    if (/[Cc]olor/.test(key)) {
+        return buildCssValueFromColor(key, values);
+    }
+
+    var unit = defaultUnit(key);
+    var nums = [];
+    for (var i = 0; i < values.length; i++) {
+        var value = values[i];
+        if (typeof value == "string") {
+            var vs = value.trim().split(/(px|deg)$/);
+            if (vs.length == 3) {
+                unit = vs[1];
+            }
+        }
+
+        // FIXME: parseFloat("") doesn't mean "0"
+        nums.push(parseFloat(value) || 0);
+    }
+
+    return buildCssValueFromNumbers(key, nums, unit);
+}
+
+function buildCssValueFromColor(key, values) {
+    if (values.length == 1) {
+        values = values[0];
+        if (typeof values == "string") {
+            return values;
+        }
+    } else if (values.length != 3) {
+        return null;
+    }
+
+    var value = "#";
+    for (var i = 0; i < values.length; i++) {
+        var v = parseInt(values[i]).toString(16);
+        if (v.length == 1) {
+            v = "0" + v;
+        }
+        value += v;
+    }
+
     return value;
 }
 
+// build js num value
 // update jsValues
+function updateJsValue(jsValues, key, value) {
+    var jsValue = buildJsValue(key, value);
+    if (jsValue != null) {
+        jsValues[key] = jsValue;
+    }
+}
+
 function updateJsValueFromTransform(jsValues, key, value) {
     if (key != "transform") {
         jsValues[key] = buildJsValue(key, value);
@@ -213,18 +340,10 @@ function updateJsValueFromTransform(jsValues, key, value) {
     for (var i = 0; i + 1 < vs.length; i += 2) {
         var k = vs[i].trim();
         var v = vs[i + 1].trim();
-        jsValues[k] = buildJsValue(k, v);
+        updateJsValue(jsValues, k, v);
     }
 }
 
-/*
-
-    {
-        value: current value (num, array...)
-        target: target value
-    }
-
-*/
 function buildJsValue(key, value) {
     if (typeof value == "string") {
         value = value.trim().replace(/^[\(\[]|[\)\]]$/g, "").split(",");
@@ -237,21 +356,6 @@ function buildJsValue(key, value) {
     } else {
         return null;
     }
-}
-
-// puer number: z-index, opacity
-// "deg": rotate, skew
-// "px": most of others
-function defaultUnit(key) {
-    var unit = "px";
-    if (key == "rotate" || key == "skew") {
-        unit = "deg";
-    }
-    else if (key == "z-index" || key == "opacity" || key == "matrix" || key == "scale") {
-        unit = "";
-    }
-
-    return unit;
 }
 
 function buildJsValueFromNumber(key, value, unit) {
@@ -282,6 +386,8 @@ function buildJsValueFromArray(key, values) {
                 unit = vs[1];
             }
         }
+
+        // FIXME: "" doesn't mean "0"
         nums.push(parseFloat(value) || 0);
     }
 
