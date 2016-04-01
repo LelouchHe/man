@@ -47,7 +47,7 @@ var optionKeys = {
     // whether to use js to mock transition/transform
     nojs: {
         type: "boolean",
-        def: true
+        def: false
     },
 
     // debug option for js mock
@@ -809,7 +809,7 @@ function getComputedStyle(node, key) {
     if (window.getComputedStyle) {
         return window.getComputedStyle(node).getPropertyValue(key);
     } else if (node.currentStyle) {
-        return window.currentStyle[key];
+        return node.currentStyle[key];
     }
 
     return "";
