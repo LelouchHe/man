@@ -303,16 +303,7 @@ function buildCssValueFromColor(key, values) {
         return null;
     }
 
-    var value = "#";
-    for (var i = 0; i < values.length; i++) {
-        var v = parseInt(values[i]).toString(16);
-        if (v.length == 1) {
-            v = "0" + v;
-        }
-        value += v;
-    }
-
-    return value;
+    return formatColorString(values);
 }
 
 // build js num value
@@ -590,10 +581,25 @@ function buildJsValueFromColor(key, values) {
     return {
         target: nums,
         unit: "",
-        gen: function (ns) {
-            return "#" + ns.join("");
-        }
+        gen: formatColorString
     };
+}
+
+function formatColorString(nums) {
+    if (nums.length != 3) {
+        return "";
+    }
+
+    var value = "#";
+    for (var i = 0; i < nums.length; i++) {
+        var v = parseInt(nums[i]).toString(16);
+        if (v.length == 1) {
+            v = "0" + v;
+        }
+        value += v;
+    }
+
+    return value;
 }
 
 function checkOptions(target) {
