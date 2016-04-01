@@ -5,25 +5,13 @@
 
 <style type="text/css">
 
-.playground {
-    height: 300px;
-}
-
 .box {
     display: inline-block;
-    width: 100px;
-    height: 100px;
+    width: 50px;
+    height: 50px;
     position: absolute;
     left: 10px;
-}
-
-#box1 {
     background-color: green;
-}
-
-#box2 {
-    background-color: red;
-    top: 150px;
 }
 
 </style>
@@ -32,71 +20,128 @@
 <body>
 
 <div class="playground">
+<div id="box0" class="box"></div>
 <div id="box1" class="box"></div>
 <div id="box2" class="box"></div>
+<div id="box3" class="box"></div>
+<div id="box4" class="box"></div>
+<div id="box5" class="box"></div>
 </div>
 
+<select id="method">
+  <option value="css">use css only</option> 
+  <option value="js">use js only</option>
+  <option value="all" selected>all together</option>
+</select>
+
 <button type="button" id="start">start</button>
+<button type="button" id="queue">queue</button>
 <button type="button" id="reset">reset</button>
 
 <script type="text/javascript" src="man.js"></script>
 <script type="text/javascript">
 
-var box1 = document.querySelector("#box1");
-var box2 = document.querySelector("#box2");
+var num = 6;
+var height = 50;
+
+var playground = document.querySelector(".playground");
+playground.style.height = (height + 10) * num + "px";
+
+var boxes = [];
+for (var i = 0; i < num; i++) {
+    boxes[i] = document.querySelector("#box" + i);
+    boxes[i].style.top = (height + 5) * i + 10 + "px";
+}
+var timings = [
+    "ease", "linear", "ease-in", "ease-out", "ease-in-out",
+    "cubic-bezier(0.39, 0.575, 0.565, 1)"
+];
+
+var method = document.querySelector("#method");
+updateMethod();
+
+addEventListener(method, "change", updateMethod);
+
+function updateMethod(evt) {
+    var nojs = false;
+    var debugjs = false;
+
+    var choice = method.options[method.selectedIndex].value;
+    if (choice == "css") {
+        nojs = true;
+    } else if (choice == "js") {
+        debugjs = true;
+    }
+
+    man.def("nojs", nojs);
+    man.def("debugjs", debugjs);
+}
 
 var start = document.querySelector("#start");
 var reset = document.querySelector("#reset");
-
-//man.def("debugjs", true);
+var queue = document.querySelector("#queue");
 
 addEventListener(start, "click", function () {
-    man.transit(
-        box1,
-        [
-        {
-            opacity: 0.5,
-            "background-color": "#0000ff",
-            left: 100,
-            rotate: "1200deg",
-        },
-        {
-            left: "150px",
-            rotate: 1100,
-        },
-        {
-            backgroundColor: [0xff, 0xff, 0]
-        }
-        ]
-    );
-
-    man.transit(
-        box2,
-        {
-            left: "150px",
-            rotate: "1100deg",
-            scale: 2,
-        }
-    );
+    for (var i = 0; i < num; i++) {
+        man.transit(
+            boxes[i],
+            {
+                left: 120,
+                timing: timings[i],
+            }
+        );
+    }
 });
 
 addEventListener(reset, "click", function () {
+    for (var i = 0; i < num; i++) {
+        man.transit(
+            boxes[i],
+            {
+                left: 10,
+                timing: timings[i],
+            }
+        );
+    }
+});
+
+addEventListener(queue, "click", function () {
     man.transit(
-        [box1, box2],
+        boxes,
         [
-        {
-            opacity: "1",
-            backgroundColor: "black",
-            left: "10px",
-            transform: "",
-            duration: 300,
-        },
-        {
-            left: "10px",
-            transform: "",
-        }
+            {
+                left: 120,
+                backgroundColor: "yellow",
+                opacity: "0.5",
+                rotate: "1080deg",
+            },
+            {
+                left: 130,
+                backgroundColor: "rgb(255, 0, 255)",
+                opacity: 0.7,
+                rotate: 720,
+            },
+            {
+                left: 140,
+                backgroundColor: "#00ffff",
+                opacity: 0.4,
+                scale: "1.5, 1",
+            },
+            {
+                left: 140,
+                backgroundColor: [0, 0xff, 0xff],
+                scale: "(1.5, 1)",
+                rotate: 1080,
+            },
+            {
+                left: 130,
+                transform: "skew(175deg)",
+            },
+            {
+                left: 120,
+            },
         ]
-    );
+    )
 });
 
 function addEventListener(node, name, func) {
