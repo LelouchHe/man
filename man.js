@@ -789,7 +789,8 @@ function removeTrailingComma(arr) {
         return;
     }
 
-    if (!arr[arr.length - 1]) {
+    // only deal with undefined
+    if (arr[arr.length - 1] == undefined) {
         arr.pop();
     }
 }
