@@ -54,7 +54,7 @@ var optionKeys = {
     debugjs: {
         type: "boolean",
         def: false
-    },
+    }
 };
 
 var transformKeys = [
@@ -68,6 +68,7 @@ var transformKeys = [
 var transitionStyle = "transition";
 var transitionEndEvent = "transitionend";
 var transformStyle = "transform";
+var filterStyle = "filter"
 initPrefix();
 
 function initPrefix() {
@@ -85,6 +86,13 @@ function initPrefix() {
         transformStyle = "";
     } else if (prefix != "") {
         transformStyle = prefix + "Transform";
+    }
+
+    prefix = getStylePrefix(filterStyle);
+    if (prefix == null) {
+        filterStyle = "";
+    } else if (prefix != "") {
+        filterStyle = prefix + "Filter";
     }
 }
 
@@ -311,8 +319,7 @@ function runOneJs(q, end) {
     
     if (isTransformAvailable() && transforms.length > 0) {
         var v = buildState(transformStyle, getComputedStyle(node, transformStyle));
-        v = v[0].value;
-        updateTransform(state, unmatrix(v.target));
+        updateTransform(state, unmatrix(v[0].value.target));
     }
 
     var startTime = (new Date()).getTime();
@@ -343,9 +350,8 @@ function runOneJs(q, end) {
     loop();
 }
 
+// FIXME: refactor
 function updateTransform(state, transforms) {
-    console.log(transforms);
-
     state["rotate"] = {
         target: [transforms.rotate],
         unit: [defaultUnit("rotate")]
@@ -391,18 +397,66 @@ function updateTransform(state, transforms) {
     };
 }
 
+function buildMatrix(key, value) {
+    var x, y;
+    // array has 1 or 2 items
+    if (Array.isArray(value)) {
+        x = value[0];
+        y = value[value.length - 1];
+    } else {
+        x = value;
+        y = value;
+    }
+
+    switch (key) {
+        case "matrix":
+            return value;
+
+        case "rotate":
+            return [Math.cos(x), Math.sin(x), - Math.sin(x), Math.cos(x), 0, 0];
+
+        case "translate":
+            return [1, 0, 0, 1, x, y];
+
+        case "translateX":
+            return [1, 0, 0, 1, x, 0];
+
+        case "translateY":
+            return [1, 0, 0, 1, 0, x];
+
+        case "scale":
+            return [x, 0, 0, y, 0, 0];
+
+        case "scaleX":
+            return [x, 0, 0, 1, 0, 0];
+
+        case "scaleY":
+            return [1, 0, 0, x, 0, 0];
+
+        case "skew":
+            return [1, Math.tan(y), Math.tan(x), 1, 0, 0];
+
+        case "skewX":
+            return [1, 0, Math.tan(x), 1, 0, 0];
+
+        case "skewY":
+            return [1, Math.tan(x), 0, 1, 0, 0];
+
+        default:
+            return null;
+    }
+}
+
 function buildTransform(transforms) {
     var matrix = [1, 0, 0, 1, 0, 0];
     for (var i = 0; i < transforms.length; i++) {
-        if (transforms[i].matrix) {
-            matrix = multiplyMatrix(matrix, transforms[i].matrix);
+        var m = buildMatrix(transforms[i].key, transforms[i].value);
+        if (m) {
+            matrix = multiplyMatrix(matrix, m);
         }
     }
 
-    return {
-        target: matrix,
-        unit: fill([], "", 6)
-    };
+    return matrix;
 }
 
 // m1/m2 has 6 items
@@ -442,6 +496,7 @@ function createTimingFunction(name) {
 }
 
 function updateStyles(node, state, target, percent, timing) {
+    var transforms = [];
     for (var key in state) {
         if (!(key in target)) {
             continue;
@@ -449,20 +504,20 @@ function updateStyles(node, state, target, percent, timing) {
 
         var starts = state[key].target;
         var lasts = target[key].target;
+
+        var values;
         if (percent >= 1) {
-            target[key].value = lasts;
-            continue;
-        }
-
-        var values = [];
-
-        for (var i = 0; i < starts.length; i++) {
-            values.push(updateValue(starts[i], lasts[i], timing(percent)));
+            values = lasts;
+        } else {
+            values = [];
+            for (var i = 0; i < starts.length; i++) {
+                values.push(updateValue(starts[i], lasts[i], timing(percent)));
+            }
         }
 
         target[key].value = values;
-        if (key == "scale") {
-            console.log(values);
+        if (transformKeys.indexOf(key) != -1) {
+            transforms.push({key: key, value: values});
         }
     }
 
@@ -474,6 +529,20 @@ function updateStyles(node, state, target, percent, timing) {
         }
 
         node.style[key] = styles[key];
+    }
+
+    // FIXME:if transform is not available, where do we get all those attrs?
+    if (!isTransformAvailable() && isFilterAvailable()
+            && transforms.length > 0) {
+        var matrix = buildTransform(transforms);
+        var filter = "progid:DXImageTransform.Microsoft.Matrix(";
+        filter += "M11=" + matrix[0] + ",";
+        filter += "M12=" + matrix[2] + ",";
+        filter += "M21=" + matrix[1] + ",";
+        filter += "M22=" + matrix[3] + ",";
+        filter += "sizingMethod='auto expand')";
+
+        node.style[filterStyle] = filter;
     }
 }
 
@@ -563,56 +632,6 @@ function buildStateFromTransform(key, value) {
     }
 
     return transforms;
-}
-
-function buildMatrix(key, value) {
-    var x, y;
-    // array has 1 or 2 items
-    if (Array.isArray(value)) {
-        x = value[0];
-        y = value[value.length - 1];
-    } else {
-        x = value;
-        y = value;
-    }
-
-    switch (key) {
-        case "matrix":
-            return value;
-
-        case "rotate":
-            return [Math.cos(x), Math.sin(x), - Math.sin(x), Math.cos(x), 0, 0];
-
-        case "translate":
-            return [1, 0, 0, 1, x, y];
-
-        case "translateX":
-            return [1, 0, 0, 1, x, 0];
-
-        case "translateY":
-            return [1, 0, 0, 1, 0, x];
-
-        case "scale":
-            return [x, 0, 0, y, 0, 0];
-
-        case "scaleX":
-            return [x, 0, 0, 1, 0, 0];
-
-        case "scaleY":
-            return [1, 0, 0, x, 0, 0];
-
-        case "skew":
-            return [1, Math.tan(y), Math.tan(x), 1, 0, 0];
-
-        case "skewX":
-            return [1, 0, Math.tan(x), 1, 0, 0];
-
-        case "skewY":
-            return [1, Math.tan(x), 0, 1, 0, 0];
-
-        default:
-            return null;
-    }
 }
 
 // value: n | [ns]
@@ -962,6 +981,10 @@ function isTransitionAvailable() {
 
 function isTransformAvailable() {
     return transformStyle != "";
+}
+
+function isFilterAvailable() {
+    return filterStyle != "";
 }
 
 function convertCssToStyle(name) {
