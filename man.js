@@ -304,18 +304,15 @@ function runOneJs(q, end) {
     for (var key in target) {
         if (transformKeys.indexOf(key) != -1) {
             transforms.push(target[key]);
-            delete target[key];
         } else {
             updateState(state, key, getComputedStyle(node, key));
         }
     }
-
-    if (transforms.length > 0) {
-        updateState(state, "transform", getComputedStyle(node, "transform"));
-        if (state["transform"]) {
-            state["matrix"] = state["transform"];
-        }
-        target["matrix"] = buildTransform(transforms);
+    
+    if (isTransformAvailable() && transforms.length > 0) {
+        var v = buildState(transformStyle, getComputedStyle(node, transformStyle));
+        v = v[0].value;
+        updateTransform(state, unmatrix(v.target));
     }
 
     var startTime = (new Date()).getTime();
@@ -344,6 +341,54 @@ function runOneJs(q, end) {
     }
 
     loop();
+}
+
+function updateTransform(state, transforms) {
+    console.log(transforms);
+
+    state["rotate"] = {
+        target: [transforms.rotate],
+        unit: [defaultUnit("rotate")]
+    };
+
+    state["scale"] = {
+        target: transforms.scale,
+        unit: ["", ""]
+    };
+    state["scaleX"] = {
+        target: [transforms.scale[0]],
+        unit: [""]
+    };
+    state["scaleY"] = {
+        target: [transforms.scale[1]],
+        unit: [""]
+    };
+
+    state["skew"] = {
+        target: transforms.skew,
+        unit: [defaultUnit("skew"), defaultUnit("skew")]
+    };
+    state["skewX"] = {
+        target: [transforms.skew[0]],
+        unit: [defaultUnit("skew")]
+    };
+    state["skewY"] = {
+        target: [transforms.skew[1]],
+        unit: [defaultUnit("skew")]
+    };
+
+    state["translate"] = {
+        target: transforms.translate,
+        unit: [defaultUnit("translate"), defaultUnit("translate")]
+    };
+    state["translateX"] = {
+        target: [transforms.translate[0]],
+        unit: [defaultUnit("translate")]
+    };
+    state["translateY"] = {
+        target: [transforms.translate[1]],
+        unit: [defaultUnit("translate")]
+    };
 }
 
 function buildTransform(transforms) {
@@ -416,6 +461,9 @@ function updateStyles(node, state, target, percent, timing) {
         }
 
         target[key].value = values;
+        if (key == "scale") {
+            console.log(values);
+        }
     }
 
     var styles = buildStyles(target);
@@ -499,9 +547,7 @@ function buildStateFromTransform(key, value) {
     if (value == "") {
         return "";
     } else if (value == "none") {
-        return {
-            target: [1, 0, 0, 1, 0, 0]
-        };
+        value = "matrix(1, 0, 0, 1, 0, 0)";
     }
 
     var vs = value.split(/(\([^\)]+\))/);
@@ -576,19 +622,33 @@ function buildStateFromNumber(key, value, unit) {
         unit = [unit || defaultUnit(key)];
     }
 
-    var state = {
+    // add default value
+    if (value.length == 1) {
+        switch (key) {
+            case "translate":
+                value.push(0);
+                unit.push(unit[0]);
+                break;
+
+            case "scale":
+                value.push(1);
+                unit.push(unit[0]);
+                break;
+
+            case "skew":
+                value.push(0);
+                unit.push(unit[0]);
+                break;
+
+            default:
+                break;
+        }
+    }
+    
+    return {
         target: value,
         unit: unit || defaultUnit(key)
     };
-
-    if (transformKeys.indexOf(key) != -1) {
-        var matrix = buildMatrix(key, state.target);
-        if (matrix) {
-            state.matrix = matrix;
-        }
-    }
-
-    return state;
 }
 
 function buildStateFromArray(key, values) {
@@ -833,6 +893,7 @@ function buildStyles(target, options) {
 function buildStyle(key, value) {
     // use value.value first, then value.target
     var target = value.value || value.target;
+
     if (/[Cc]olor/.test(key)) {
         return buildStyleFromColor(key, target);
     } else if (transformKeys.indexOf(key) != -1) {
@@ -1043,6 +1104,31 @@ function bezier (mX1, mY1, mX2, mY2) {
         return calcBezier(getTForX(x), mY1, mY2);
     };
 };
+
+// http://stackoverflow.com/questions/5107134/find-the-rotation-and-skew-of-a-matrix-transformation
+function unmatrix(a) {
+    var rotate = Math.atan2(a[1], a[0]);
+    var denom = Math.pow(a[0], 2) + Math.pow(a[1], 2);
+    var scaleX = Math.sqrt(denom);
+    var scaleY = (a[0] * a[3] - a[2] * a [1]) / scaleX;
+    var skewX = Math.atan2(a[0] * a[2] + a[1] * a [3], denom);
+
+    // normally we use positive deg
+    rotate = rotate / (Math.PI / 180);
+    if (rotate < 0) {
+        rotate += 360;
+    }
+    skewX = skewX / (Math.PI / 180);
+    if (skewX < 0) {
+        skewX += 360;
+    }
+    return {
+        rotate: rotate,
+        scale: [scaleX, scaleY],
+        skew: [skewX, 0],
+        translate: [a[4], a[5]]
+    };
+}
 
 })();
 
