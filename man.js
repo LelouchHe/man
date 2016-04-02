@@ -58,7 +58,11 @@ var optionKeys = {
 };
 
 var transformKeys = [
-    "transform", "matrix", "translate", "scale", "rotate", "skew",
+    "transform", "matrix",
+    "rotate", "translate", "scale", "skew",
+    "translateX", "translateY",
+    "scaleX", "scaleY",
+    "skewX", "skewY"
 ];
 
 var transitionStyle = "transition";
@@ -295,9 +299,23 @@ function runOneJs(q, end) {
     var target = q.target;
     var timing = createTimingFunction(options.timing);
 
+    var transforms = [];
     var state = {};
     for (var key in target) {
-        updateState(state, key, getComputedStyle(node, key));
+        if (transformKeys.indexOf(key) != -1) {
+            transforms.push(target[key]);
+            delete target[key];
+        } else {
+            updateState(state, key, getComputedStyle(node, key));
+        }
+    }
+
+    if (transforms.length > 0) {
+        updateState(state, "transform", getComputedStyle(node, "transform"));
+        if (state["transform"]) {
+            state["matrix"] = state["transform"];
+        }
+        target["matrix"] = buildTransform(transforms);
     }
 
     var startTime = (new Date()).getTime();
@@ -328,6 +346,32 @@ function runOneJs(q, end) {
     loop();
 }
 
+function buildTransform(transforms) {
+    var matrix = [1, 0, 0, 1, 0, 0];
+    for (var i = 0; i < transforms.length; i++) {
+        if (transforms[i].matrix) {
+            matrix = multiplyMatrix(matrix, transforms[i].matrix);
+        }
+    }
+
+    return {
+        target: matrix,
+        unit: fill([], "", 6)
+    };
+}
+
+// m1/m2 has 6 items
+function multiplyMatrix(m1, m2) {
+    return [
+        m1[0] * m2[0] + m1[2] * m2[1],
+        m1[1] * m2[0] + m1[3] * m2[1],
+        m1[0] * m2[2] + m1[2] * m2[3],
+        m1[1] * m2[2] + m1[3] * m2[3],
+        m1[0] * m2[4] + m1[2] * m2[5] + m1[4],
+        m1[1] * m2[4] + m1[3] * m2[5] + m1[5],
+    ];
+}
+
 var timingFunctions = {
     "ease": [0.25, 0.1, 0.25, 1],
     "linear": [0, 0, 1, 1],
@@ -354,8 +398,7 @@ function createTimingFunction(name) {
 
 function updateStyles(node, state, target, percent, timing) {
     for (var key in state) {
-        // FIXME: transform return matrix
-        if (!(key in target) || transformKeys.indexOf(key) != -1) {
+        if (!(key in target)) {
             continue;
         }
 
@@ -414,7 +457,8 @@ function defaultUnit(key) {
     }
 }
 
-// key: {target: t | [t], unit: u | [u], gen?}
+// key: {target: t | [t], unit: u | [u], matrix: []}
+// matrix is for transform
 function updateState(state, key, value) {
     var v = buildState(key, value);
     if (Array.isArray(v)) {
@@ -454,6 +498,10 @@ function buildStateFromTransform(key, value) {
     value = value.trim();
     if (value == "") {
         return "";
+    } else if (value == "none") {
+        return {
+            target: [1, 0, 0, 1, 0, 0]
+        };
     }
 
     var vs = value.split(/(\([^\)]+\))/);
@@ -471,6 +519,56 @@ function buildStateFromTransform(key, value) {
     return transforms;
 }
 
+function buildMatrix(key, value) {
+    var x, y;
+    // array has 1 or 2 items
+    if (Array.isArray(value)) {
+        x = value[0];
+        y = value[value.length - 1];
+    } else {
+        x = value;
+        y = value;
+    }
+
+    switch (key) {
+        case "matrix":
+            return value;
+
+        case "rotate":
+            return [Math.cos(x), Math.sin(x), - Math.sin(x), Math.cos(x), 0, 0];
+
+        case "translate":
+            return [1, 0, 0, 1, x, y];
+
+        case "translateX":
+            return [1, 0, 0, 1, x, 0];
+
+        case "translateY":
+            return [1, 0, 0, 1, 0, x];
+
+        case "scale":
+            return [x, 0, 0, y, 0, 0];
+
+        case "scaleX":
+            return [x, 0, 0, 1, 0, 0];
+
+        case "scaleY":
+            return [1, 0, 0, x, 0, 0];
+
+        case "skew":
+            return [1, Math.tan(y), Math.tan(x), 1, 0, 0];
+
+        case "skewX":
+            return [1, 0, Math.tan(x), 1, 0, 0];
+
+        case "skewY":
+            return [1, Math.tan(x), 0, 1, 0, 0];
+
+        default:
+            return null;
+    }
+}
+
 // value: n | [ns]
 function buildStateFromNumber(key, value, unit) {
     if (!Array.isArray(value)) {
@@ -478,10 +576,19 @@ function buildStateFromNumber(key, value, unit) {
         unit = [unit || defaultUnit(key)];
     }
 
-    return {
+    var state = {
         target: value,
         unit: unit || defaultUnit(key)
     };
+
+    if (transformKeys.indexOf(key) != -1) {
+        var matrix = buildMatrix(key, state.target);
+        if (matrix) {
+            state.matrix = matrix;
+        }
+    }
+
+    return state;
 }
 
 function buildStateFromArray(key, values) {
@@ -814,6 +921,8 @@ function fill(arr, value, length) {
         arr.push(value);
         len++;
     }
+
+    return arr;
 }
 
 function getComputedStyle(node, key) {
