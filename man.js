@@ -241,7 +241,7 @@ function runOne(q, end) {
 function runOneCss(q, end) {
     var node = q.node;
 
-    var styles = buildStyles(q);
+    var styles = buildStyles(q.target, q.options);
 
     // "" is not allowed in node.style in IE8
     if (isTransitionAvailable()) {
@@ -293,6 +293,7 @@ function runOneJs(q, end) {
     var node = q.node;
     var options = q.options;
     var target = q.target;
+    var timing = createTimingFunction(options.timing);
 
     var state = {};
     for (var key in target) {
@@ -308,10 +309,13 @@ function runOneJs(q, end) {
         }
 
         var now = (new Date()).getTime();
-        var passed = now - startTime;
-        updateStyles(q, state, passed);
+        var percent = (now - startTime) / options.duration;
+        if (percent >= 1) {
+            percent = 1;
+        }
+        updateStyles(node, state, target, percent, timing);
 
-        if (passed >= options.duration) {
+        if (percent >= 1) {
             if (end) {
                 end();
             }
@@ -348,17 +352,7 @@ function createTimingFunction(name) {
     return bezier(params[0], params[1], params[2], params[3]);
 }
 
-function updateStyles(q, state, passed) {
-    var node = q.node;
-    var target = q.target;
-    var duration = q.options.duration;
-    var timing = createTimingFunction(q.options.timing);
-
-
-    if (passed > duration) {
-        passed = duration;
-    }
-
+function updateStyles(node, state, target, percent, timing) {
     for (var key in state) {
         // FIXME: transform return matrix
         if (!(key in target) || transformKeys.indexOf(key) != -1) {
@@ -367,7 +361,7 @@ function updateStyles(q, state, passed) {
 
         var starts = state[key].target;
         var lasts = target[key].target;
-        if (passed > duration) {
+        if (percent >= 1) {
             target[key].value = lasts;
             continue;
         }
@@ -375,18 +369,13 @@ function updateStyles(q, state, passed) {
         var values = [];
 
         for (var i = 0; i < starts.length; i++) {
-            values.push(updateValue(
-                            starts[i],
-                            lasts[i],
-                            duration,
-                            passed,
-                            timing));
+            values.push(updateValue(starts[i], lasts[i], timing(percent)));
         }
 
         target[key].value = values;
     }
 
-    var styles = buildStyles(q);
+    var styles = buildStyles(target);
 
     for (var key in styles) {
         if (key == transitionStyle) {
@@ -397,10 +386,8 @@ function updateStyles(q, state, passed) {
     }
 }
 
-// FIXME: linear for test
-function updateValue(start, last, duration, passed, timing) {
-    var p = timing(passed / duration);
-    return (1 - p) * start + p * last;
+function updateValue(start, last, percent) {
+    return (1 - percent) * start + percent * last;
 }
 
 // puer number: z-index, opacity, matrix, scale
@@ -705,11 +692,11 @@ function buildStateFromColor(key, values) {
     return buildStateFromNumber(key, nums);
 }
 
-function buildStyles(q) {
-    var options = q.options;
-    var target = q.target;
-
-    var postfix = " " + options.duration + "ms " + options.timing + " " + options.delay + "ms";
+function buildStyles(target, options) {
+    var postfix = "";
+    if (options) {
+        postfix = " " + options.duration + "ms " + options.timing + " " + options.delay + "ms";
+    }
 
     var style = {};
 
@@ -729,7 +716,9 @@ function buildStyles(q) {
         style[transformStyle] = transforms.join(" ");
     }
 
-    style[transitionStyle] = transitions.join(",");
+    if (postfix) {
+        style[transitionStyle] = transitions.join(",");
+    }
 
     return style;
 }
