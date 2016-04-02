@@ -128,6 +128,9 @@ man.transit = function (nodes, targets) {
         fill(targets, targets[0], nodes.length);
     }
 
+    removeTrailingComma(nodes);
+    removeTrailingComma(targets);
+
     if (nodes.length != targets.length) {
         return;
     }
@@ -780,6 +783,16 @@ function buildStyleFromTransform(key, target, unit) {
     return key + "(" + style.join(",") + ")";
 }
 
+// fix IE8 bug: array with trailing comma
+function removeTrailingComma(arr) {
+    if (!Array.isArray(arr)) {
+        return;
+    }
+
+    if (!arr[arr.length - 1]) {
+        arr.pop();
+    }
+}
 
 function isCssAvailable() {
     return isTransitionAvailable() && isTransformAvailable();

@@ -147,7 +147,7 @@ addEventListener(queue, "click", function () {
 function addEventListener(node, name, func) {
     if (node.addEventListener) {
         node.addEventListener(name, func);
-    } else {
+    } else if (node.attachEvent) {
         node.attachEvent("on" + name, func);
     }
 }
