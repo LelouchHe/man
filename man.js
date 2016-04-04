@@ -540,6 +540,8 @@ function updateStyles(node, state, target, percent, timing) {
         filter += "M12=" + matrix[2] + ",";
         filter += "M21=" + matrix[1] + ",";
         filter += "M22=" + matrix[3] + ",";
+        filter += "Dx=" + matrix[4] + ",";
+        filter += "Dy=" + matrix[5] + ",";
         filter += "sizingMethod='auto expand')";
 
         node.style[filterStyle] = filter;
@@ -574,8 +576,7 @@ function defaultUnit(key) {
     }
 }
 
-// key: {target: t | [t], unit: u | [u], matrix: []}
-// matrix is for transform
+// key: {target: t | [t], unit: u | [u]}
 function updateState(state, key, value) {
     var v = buildState(key, value);
     if (Array.isArray(v)) {
