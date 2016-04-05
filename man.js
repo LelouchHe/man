@@ -1,6 +1,5 @@
-(function () {
 
-var man = window.man = {};
+define(function () {
 
 if (!Array.isArray) {
     Array.isArray = function (arg) {
@@ -112,6 +111,8 @@ function getStylePrefix(style) {
 
     return null;
 }
+
+var man = {};
 
 man.def = function (key, value) {
     if (!(key in optionKeys)) {
@@ -587,9 +588,9 @@ function updateState(state, key, value) {
 }
 
 function buildState(key, value) {
-    if (key == transformStyle) {
+    if (key == "transform" || key == transformStyle) {
         return buildStateFromTransform(key, value);
-    } else if (key == filterStyle) {
+    } else if (key == "filter" || key == filterStyle) {
         return buildStateFromFilter(key, value);
     }
 
@@ -1183,5 +1184,7 @@ function unmatrix(a) {
     };
 }
 
-})();
+return man;
+
+});
 
