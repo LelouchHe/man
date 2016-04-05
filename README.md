@@ -87,4 +87,4 @@ issue:
 4. hard to compute original style when you set `xxx: ""` (maybe we can just set it, and get css style and set it back?)
 5. `transform` return `matrix` from current styel. don't touch this now. (matrix turns out to be non-animated, we need to extract value first)
 6. since unit may differ between user input and node style, no calc here, just use node style as if they're with same unit
-7. still hard to do complex animation
+7. still hard to do complex animation (use "queue" as an example. queued from left to right, and simultaneously from rigth to left)
