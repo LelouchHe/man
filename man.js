@@ -1011,15 +1011,26 @@ function fill(arr, value, length) {
 }
 
 function getComputedStyle(node, key) {
-    key = convertStyleToCss(key);
-    if (window.getComputedStyle) {
-        return window.getComputedStyle(node).getPropertyValue(key);
-    } else if (node.currentStyle) {
-        return node.currentStyle[key];
+    function helper(node, key) {
+        if (window.getComputedStyle) {
+            return window.getComputedStyle(node).getPropertyValue(key);
+        } else if (node.currentStyle) {
+            return node.currentStyle[key];
+        }
+
+        return "";
     }
 
-    return "";
+    key = convertStyleToCss(key);
+    var value = helper(node, key);
+    if (!value) {
+        key = convertCssToStyle(key);
+        value = helper(node, key);
+    }
+
+    return value;
 }
+
 
 // modification of a well-tuned implemention
 
