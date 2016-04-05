@@ -316,12 +316,17 @@ function runOneJs(q, end) {
             updateState(state, key, getComputedStyle(node, key));
         }
     }
-    
-    if (isTransformAvailable() && transforms.length > 0) {
-        var v = buildState(transformStyle, getComputedStyle(node, transformStyle));
-        updateTransform(state, unmatrix(v[0].value.target));
-    }
 
+    if (transforms.length > 0) {
+        if (isTransformAvailable()) {
+            var v = buildState(transformStyle, getComputedStyle(node, transformStyle));
+            updateTransform(state, unmatrix(v[0].value.target));
+        } else if (isFilterAvailable()) {
+            var v = buildState(filterStyle, getComputedStyle(node, filterStyle));
+            updateTransform(state, unmatrix(v.target));
+        }
+    }
+    
     var startTime = (new Date()).getTime();
     var queue = node.manq;
 
@@ -350,125 +355,28 @@ function runOneJs(q, end) {
     loop();
 }
 
-// FIXME: refactor
 function updateTransform(state, transforms) {
-    state["rotate"] = {
-        target: [transforms.rotate],
-        unit: [defaultUnit("rotate")]
-    };
+    for (var key in transforms) {
+        var value = transforms[key];
+        var isArray = Array.isArray(value);
+        state[key] = {
+            target: isArray ? value : [value],
+            unit: fill([], value.length, defaultUnit(key))
+        };
 
-    state["scale"] = {
-        target: transforms.scale,
-        unit: ["", ""]
-    };
-    state["scaleX"] = {
-        target: [transforms.scale[0]],
-        unit: [""]
-    };
-    state["scaleY"] = {
-        target: [transforms.scale[1]],
-        unit: [""]
-    };
-
-    state["skew"] = {
-        target: transforms.skew,
-        unit: [defaultUnit("skew"), defaultUnit("skew")]
-    };
-    state["skewX"] = {
-        target: [transforms.skew[0]],
-        unit: [defaultUnit("skew")]
-    };
-    state["skewY"] = {
-        target: [transforms.skew[1]],
-        unit: [defaultUnit("skew")]
-    };
-
-    state["translate"] = {
-        target: transforms.translate,
-        unit: [defaultUnit("translate"), defaultUnit("translate")]
-    };
-    state["translateX"] = {
-        target: [transforms.translate[0]],
-        unit: [defaultUnit("translate")]
-    };
-    state["translateY"] = {
-        target: [transforms.translate[1]],
-        unit: [defaultUnit("translate")]
-    };
-}
-
-function buildMatrix(key, value) {
-    var x, y;
-    // array has 1 or 2 items
-    if (Array.isArray(value)) {
-        x = value[0];
-        y = value[value.length - 1];
-    } else {
-        x = value;
-        y = value;
-    }
-
-    switch (key) {
-        case "matrix":
-            return value;
-
-        case "rotate":
-            return [Math.cos(x), Math.sin(x), - Math.sin(x), Math.cos(x), 0, 0];
-
-        case "translate":
-            return [1, 0, 0, 1, x, y];
-
-        case "translateX":
-            return [1, 0, 0, 1, x, 0];
-
-        case "translateY":
-            return [1, 0, 0, 1, 0, x];
-
-        case "scale":
-            return [x, 0, 0, y, 0, 0];
-
-        case "scaleX":
-            return [x, 0, 0, 1, 0, 0];
-
-        case "scaleY":
-            return [1, 0, 0, x, 0, 0];
-
-        case "skew":
-            return [1, Math.tan(y), Math.tan(x), 1, 0, 0];
-
-        case "skewX":
-            return [1, 0, Math.tan(x), 1, 0, 0];
-
-        case "skewY":
-            return [1, Math.tan(x), 0, 1, 0, 0];
-
-        default:
-            return null;
-    }
-}
-
-function buildTransform(transforms) {
-    var matrix = [1, 0, 0, 1, 0, 0];
-    for (var i = 0; i < transforms.length; i++) {
-        var m = buildMatrix(transforms[i].key, transforms[i].value);
-        if (m) {
-            matrix = multiplyMatrix(matrix, m);
+        if (!isArray) {
+            continue;
         }
+
+        state[key + "X"] = {
+            target: [value[0]],
+            unit: [defaultUnit(key)]
+        };
+        state[key + "Y"] = {
+            target: [value[1]],
+            unit: [defaultUnit(key)]
+        };
     }
-
-    return matrix;
-}
-
-// m1/m2 has 6 items
-function multiplyMatrix(m1, m2) {
-    return [
-        m1[0] * m2[0] + m1[2] * m2[1],
-        m1[1] * m2[0] + m1[3] * m2[1],
-        m1[0] * m2[2] + m1[2] * m2[3],
-        m1[1] * m2[2] + m1[3] * m2[3],
-        m1[0] * m2[4] + m1[2] * m2[5] + m1[4],
-        m1[1] * m2[4] + m1[3] * m2[5] + m1[5],
-    ];
 }
 
 var timingFunctions = {
@@ -531,26 +439,114 @@ function updateStyles(node, state, target, percent, timing) {
         node.style[key] = styles[key];
     }
 
-    // FIXME:if transform is not available, where do we get all those attrs?
     if (!isTransformAvailable() && isFilterAvailable()
             && transforms.length > 0) {
-        var matrix = buildTransform(transforms);
-        var filter = "progid:DXImageTransform.Microsoft.Matrix(";
-        filter += "M11=" + matrix[0] + ",";
-        filter += "M12=" + matrix[2] + ",";
-        filter += "M21=" + matrix[1] + ",";
-        filter += "M22=" + matrix[3] + ",";
-        filter += "Dx=" + matrix[4] + ",";
-        filter += "Dy=" + matrix[5] + ",";
-        filter += "sizingMethod='auto expand')";
-
-        node.style[filterStyle] = filter;
+        node.style[filterStyle] = buildFilter(transforms);
     }
 }
 
 function updateValue(start, last, percent) {
     return (1 - percent) * start + percent * last;
 }
+
+var filterMatrixArray = ["M11", "M21", "M12", "M22", "Dx", "Dy"];
+var filterMatrixMap = buildFilterMatrixMap(filterMatrixArray);
+
+function buildFilterMatrixMap(arr) {
+    var map = {};
+    for (var i = 0; i < arr.length; i++) {
+        map[arr[i]] = i;
+    }
+
+    return map;
+}
+
+function buildFilter(transforms) {
+    var matrix = buildTransform(transforms);
+    var filter = "progid:DXImageTransform.Microsoft.Matrix(";
+    filter += "sizingMethod='auto expand'";
+    for (var i = 0; i < matrix.length; i++) {
+        filter += "," + filterMatrixArray[i] + "=" + matrix[i];
+    }
+    filter += ")";
+
+    return filter;
+}
+
+function buildTransform(transforms) {
+    var matrix = [1, 0, 0, 1, 0, 0];
+    for (var i = 0; i < transforms.length; i++) {
+        var m = buildMatrix(transforms[i].key, transforms[i].value);
+        if (m) {
+            matrix = multiplyMatrix(matrix, m);
+        }
+    }
+
+    return matrix;
+}
+
+function buildMatrix(key, value) {
+    var x, y;
+    // array has 1 or 2 items
+    if (Array.isArray(value)) {
+        x = value[0];
+        y = value[value.length - 1];
+    } else {
+        x = value;
+        y = value;
+    }
+
+    switch (key) {
+        case "matrix":
+            return value;
+
+        case "rotate":
+            return [Math.cos(x), Math.sin(x), - Math.sin(x), Math.cos(x), 0, 0];
+
+        case "translate":
+            return [1, 0, 0, 1, x, y];
+
+        case "translateX":
+            return [1, 0, 0, 1, x, 0];
+
+        case "translateY":
+            return [1, 0, 0, 1, 0, x];
+
+        case "scale":
+            return [x, 0, 0, y, 0, 0];
+
+        case "scaleX":
+            return [x, 0, 0, 1, 0, 0];
+
+        case "scaleY":
+            return [1, 0, 0, x, 0, 0];
+
+        case "skew":
+            return [1, Math.tan(y), Math.tan(x), 1, 0, 0];
+
+        case "skewX":
+            return [1, 0, Math.tan(x), 1, 0, 0];
+
+        case "skewY":
+            return [1, Math.tan(x), 0, 1, 0, 0];
+
+        default:
+            return null;
+    }
+}
+
+// m1/m2 has 6 items
+function multiplyMatrix(m1, m2) {
+    return [
+        m1[0] * m2[0] + m1[2] * m2[1],
+        m1[1] * m2[0] + m1[3] * m2[1],
+        m1[0] * m2[2] + m1[2] * m2[3],
+        m1[1] * m2[2] + m1[3] * m2[3],
+        m1[0] * m2[4] + m1[2] * m2[5] + m1[4],
+        m1[1] * m2[4] + m1[3] * m2[5] + m1[5],
+    ];
+}
+
 
 // puer number: z-index, opacity, matrix, scale
 // "deg": rotate, skew
@@ -591,12 +587,14 @@ function updateState(state, key, value) {
 }
 
 function buildState(key, value) {
-    if (key == "transform") {
+    if (key == transformStyle) {
         return buildStateFromTransform(key, value);
+    } else if (key == filterStyle) {
+        return buildStateFromFilter(key, value);
     }
 
     if (typeof value == "string") {
-        value = value.trim().replace(/^(rgb)?\(|\)$/g, "").split(",");
+        value = value.trim().replace(/^(rgb)?\(|\)$/g, "").split(/\s*,\s*/);
     }
 
     if (typeof value == "number") {
@@ -614,9 +612,7 @@ function buildStateFromTransform(key, value) {
     }
 
     value = value.trim();
-    if (value == "") {
-        return "";
-    } else if (value == "none") {
+    if (value == "" || value == "none") {
         value = "matrix(1, 0, 0, 1, 0, 0)";
     }
 
@@ -633,6 +629,28 @@ function buildStateFromTransform(key, value) {
     }
 
     return transforms;
+}
+
+// FIXME: only deal with Matrix
+function buildStateFromFilter(key, value) {
+    var matrix = [1, 0, 0, 1, 0, 0];
+    if (value == "") {
+        return {target: matrix, unit: ""};
+    }
+
+    var vs = value.split(/(\([^\)]+\))/);
+    if (vs.length % 2 == 0) {
+        return null;
+    }
+    vs = vs[1].slice(1, vs[1].length - 1).split(/\s*,\s*/);
+
+    for (var i = 0; i < vs.length; i++) {
+        var v = vs[i].split(/\s*=\s*/);
+        var pos = filterMatrixMap[v[0]];
+        matrix[pos] = parseFloat(v[1]);
+    }
+
+    return {target: matrix, unit: ""};
 }
 
 // value: n | [ns]
