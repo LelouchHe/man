@@ -320,10 +320,10 @@ function runOneJs(q, end) {
 
     if (transforms.length > 0) {
         if (isTransformAvailable()) {
-            var v = buildState(transformStyle, getComputedStyle(node, transformStyle));
+            var v = buildState("transform", getComputedStyle(node, transformStyle));
             updateTransform(state, unmatrix(v[0].value.target));
         } else if (isFilterAvailable()) {
-            var v = buildState(filterStyle, getComputedStyle(node, filterStyle));
+            var v = buildState("filter", getComputedStyle(node, filterStyle));
             updateTransform(state, unmatrix(v.target));
         }
     }
@@ -588,9 +588,9 @@ function updateState(state, key, value) {
 }
 
 function buildState(key, value) {
-    if (key == "transform" || key == transformStyle) {
+    if (key == "transform") {
         return buildStateFromTransform(key, value);
-    } else if (key == "filter" || key == filterStyle) {
+    } else if (key == "filter") {
         return buildStateFromFilter(key, value);
     }
 
