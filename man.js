@@ -135,44 +135,26 @@ man.def = function (key, value) {
     attr.def = value;
 };
 
-// 0 is false, so starts from 1
-var currentId = 1;
-var waitQueues = {};
+// FIXME: global vars are always not good
+var currentId = 0;
+
+// all running id
+var runnings = {};
+
+// id: [callback]
 var callbackQueues = {};
+
 var nodeIdName = "data-manid";
 
-man.transit = function (node, target, waitIds, waitType) {
-    if (!waitIds) {
-        waitIds = [-1];
-    } else if (!Array.isArray(waitIds)) {
-        waitIds = [waitIds];
-    }
-
-    if (!waitType || waitType != "any") {
-        waitType = "all";
-    }
-
+man.transit = function (node, target) {
     var q = buildQueueItem(node, target);
+
     var id = currentId++;
+    runnings[id] = q;
+
     q.options.id = id;
-    waitQueues[id] = [];
 
-    var waitCount = 0;
-    for (var i = 0; i < waitIds.length; i++) {
-        var queue = waitQueues[waitIds[i]]
-        if (!Array.isArray(queue)) {
-            continue;
-        }
-        queue.push(q);
-        waitCount++;
-    }
-    if (waitType == "all") {
-        q.options.waitCount = waitCount;
-    } else if (waitCount > 0) {
-        q.options.waitCount = 1;
-    }
-
-    tryRun(q);
+    runOne(q);
 
     return id;
 }
@@ -186,8 +168,7 @@ man.wait = function (ids, callback) {
 
     for (var i = 0; i < ids.length; i++) {
         var id = ids[i];
-        var queue = waitQueues[id]
-        if (!Array.isArray(queue)) {
+        if (!runnings[id]) {
             callback(id);
             continue;
         }
@@ -234,12 +215,6 @@ function checkOption(value, type, def) {
     return value;
 }
 
-function tryRun(q) {
-    if (q.options.waitCount == 0) {
-        runOne(q);
-    }
-}
-
 function runOne(q) {
     if (!q) {
         return;
@@ -255,17 +230,7 @@ function runOne(q) {
 
 function notify(q) {
     var id = q.options.id;
-    var queue = waitQueues[id];
-    if (!queue) {
-        return;
-    }
-
-    for (var i = 0; i < queue.length; i++) {
-        var w = queue[i];
-        w.options.waitCount--;
-        tryRun(w);
-    }
-    delete waitQueues[id];
+    delete runnings[id];
 
     var callbacks = callbackQueues[id];
     if (!callbacks) {

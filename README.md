@@ -91,8 +91,13 @@ issue:
 
 # complex animation
 
-    var id = man.transit(node, target, [waitId], "any" | "all");
+    var id1 = man.transit(node1, target2);
+    var id2 = man.transit(node2, target2);
+    man.wait([id1, id2], function () {
+        man.transit(node3, target3);
+    });
 
-that your transit will wait until animations of `[waitId]` are done.
+`man.wait` will wait for any animation of `[id]` is over, so it's all up to user to determine what will happen.
 
-I should to provide some mechanism to tell others animation is over, other than offer such awkward waitId to limit usage.
+in test.js, i demonstrate 2 ways to queue all animations: use `target.end` or `man.wait`
+

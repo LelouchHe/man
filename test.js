@@ -72,11 +72,16 @@ addEventListener(reset, "click", function () {
     }
 });
 
-function makeQueue(nodes, targets) {
-    var id = -1;
-    for (var i = 0; i < nodes.length; i++) {
-        id = man.transit(nodes[i], targets[i], id);
+function makeQueue(nodes, targets, start) {
+    start = start || 0;
+    if (start >= nodes.length) {
+        return;
     }
+
+    var id = man.transit(nodes[start], targets[start]);
+    man.wait(id, function () {
+        makeQueue3(nodes, targets, start + 1);
+    });
 }
 
 function makeQueue2(nodes, targets, start) {
@@ -97,20 +102,8 @@ function makeQueue2(nodes, targets, start) {
     man.transit(nodes[start], targets[start]);
 }
 
-function makeQueue3(nodes, targets, start) {
-    start = start || 0;
-    if (start >= nodes.length) {
-        return;
-    }
-
-    var id = man.transit(nodes[start], targets[start]);
-    man.wait(id, function () {
-        makeQueue3(nodes, targets, start + 1);
-    });
-}
-
 addEventListener(queue, "click", function () {
-    makeQueue3(
+    makeQueue(
         boxes,
         [
             {
