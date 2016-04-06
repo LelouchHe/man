@@ -91,6 +91,8 @@ issue:
 
 # complex animation
 
-    var id = man.transit(node, target, [waitId], any | all);
+    var id = man.transit(node, target, [waitId], "any" | "all");
 
 that your transit will wait until animations of `[waitId]` are done.
+
+I should to provide some mechanism to tell others animation is over, other than offer such awkward waitId to limit usage.

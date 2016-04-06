@@ -234,7 +234,8 @@ function runOne(q) {
 }
 
 function notify(q) {
-    var queue = waitQueues[q.options.id];
+    var id = q.options.id;
+    var queue = waitQueues[id];
     if (!queue) {
         return;
     }
@@ -244,7 +245,7 @@ function notify(q) {
         w.options.waitCount--;
         tryRun(w);
     }
-    waitQueues[q.options.id] = null;
+    waitQueues[id] = null;
 }
 
 function runOneCss(q) {
