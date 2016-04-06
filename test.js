@@ -65,7 +65,8 @@ addEventListener(reset, "click", function () {
             boxes[i],
             {
                 left: 10,
-                timing: timings[i]
+                timing: timings[i],
+                duration: 500
             }
         );
     }

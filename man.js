@@ -135,45 +135,49 @@ man.def = function (key, value) {
     attr.def = value;
 };
 
-var currentId = 0;
-var waitQueue = {};
+// 0 is false, so starts from 1
+var currentId = 1;
+var waitQueues = {};
 
 man.transit = function (node, target, waitIds, waitType) {
-    if (waitIds == null || waitIds == undefined) {
+    if (!waitIds) {
         waitIds = [-1];
     } else if (!Array.isArray(waitIds)) {
         waitIds = [waitIds];
     }
 
-    if (!waitType) {
+    if (!waitType || waitType != "any") {
         waitType = "all";
     }
 
     var q = buildQueueItem(node, target);
-    q.options.id = currentId++;
-    waitQueue[q.options.id] = [];
+    var id = currentId++;
+
+    // FIXME: add 'manid' to DOM
+    node.manid = q.options.id = id;
+    waitQueues[id] = [];
+
     var waitCount = 0;
     for (var i = 0; i < waitIds.length; i++) {
-        if (!waitQueue[waitIds[i]]) {
+        var queue = waitQueues[waitIds[i]]
+        if (!Array.isArray(queue)) {
             continue;
         }
-        waitQueue[waitIds[i]].push(q);
+        queue.push(q);
         waitCount++;
     }
-    q.options.waitCount = waitCount;
-    q.options.waitType = waitType;
+    if (waitType == "all") {
+        q.options.waitCount = waitCount;
+    } else if (waitCount > 0) {
+        q.options.waitCount = 1;
+    }
 
     tryRun(q);
 
-    return q.options.id;
+    return id;
 }
 
-function tryRun(q) {
-    if (q.options.waitCount == 0) {
-        runOne(q);
-    }
-}
-
+// FIXME: this can be moved out of man
 man.queue = function (nodes, targets) {
     if (!Array.isArray(nodes)) {
         nodes = [nodes];
@@ -242,23 +246,40 @@ function checkOption(value, type, def) {
     return value;
 }
 
-function runOne(q, end) {
+function tryRun(q) {
+    if (q.options.waitCount == 0) {
+        runOne(q);
+    }
+}
+
+function runOne(q) {
     if (!q) {
-        if (end) {
-            end();
-        }
         return;
     }
 
     if ((isCssAvailable() || q.options.nojs)
             && !q.options.debugjs) {
-        runOneCss(q, end);
+        runOneCss(q);
     } else {
-        runOneJs(q, end);
+        runOneJs(q);
     }
 }
 
-function runOneCss(q, end) {
+function notify(q) {
+    var queue = waitQueues[q.options.id];
+    if (!queue) {
+        return;
+    }
+
+    for (var i = 0; i < queue.length; i++) {
+        var w = queue[i];
+        w.options.waitCount--;
+        tryRun(w);
+    }
+    waitQueues[q.options.id] = null;
+}
+
+function runOneCss(q) {
     var node = q.node;
 
     var styles = buildStyles(q.target, q.options);
@@ -287,11 +308,7 @@ function runOneCss(q, end) {
             q.options.end();
         }
 
-        notify(q.options.id);
-        
-        if (end) {
-            end();
-        }
+        notify(q);
     }
 
     // no support transition, no addEventListener
@@ -300,19 +317,6 @@ function runOneCss(q, end) {
     } else {
         transitionEndHandler();
     }
-}
-
-function notify(id) {
-    var queue = waitQueue[id];
-    if (!queue) {
-        return;
-    }
-
-    for (var i = 0; i < queue.length; i++) {
-        queue[i].options.waitCount--;
-        tryRun(queue[i]);
-    }
-    waitQueue[id] = null;
 }
 
 var raf = window.requestAnimationFrame
@@ -324,7 +328,7 @@ var raf = window.requestAnimationFrame
         window.setTimeout(callback, 16);
     };
 
-function runOneJs(q, end) {
+function runOneJs(q) {
     var node = q.node;
     var options = q.options;
     var target = q.target;
@@ -350,9 +354,14 @@ function runOneJs(q, end) {
         }
     }
     
+    var manid = node.manid;
     var startTime = (new Date()).getTime();
 
     function loop() {
+        if (node.manid != manid) {
+            return;
+        }
+
         var now = (new Date()).getTime();
         var percent = (now - startTime) / options.duration;
         if (percent >= 1) {
@@ -365,11 +374,7 @@ function runOneJs(q, end) {
                 options.end();
             }
 
-            notify(q.options.id);
-
-            if (end) {
-                end();
-            }
+            notify(q);
             return;
         }
 
