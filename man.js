@@ -135,38 +135,47 @@ man.def = function (key, value) {
     attr.def = value;
 };
 
-man.transit = function (nodes, targets) {
-    if (!Array.isArray(nodes)) {
-        nodes = [nodes];
-    }
-    if (!Array.isArray(targets)) {
-        targets = [targets];
+// FIXME: global vars are always not good
+var currentId = 0;
+
+// all running id
+var runnings = {};
+
+// id: [callback]
+var callbackQueues = {};
+
+var nodeIdName = "data-manid";
+
+man.transit = function (node, target) {
+    var q = buildQueueItem(node, target);
+
+    var id = currentId++;
+    runnings[id] = q;
+
+    q.options.id = id;
+
+    runOne(q);
+
+    return id;
+}
+
+// any of ids is over, callback is invoked
+// callback (id: number): void
+man.wait = function (ids, callback) {
+    if (!Array.isArray(ids)) {
+        ids = [ids];
     }
 
-    if (nodes.length == 1) {
-        fill(nodes, nodes[0], targets.length);
-    } else if (targets.length == 1) {
-        fill(targets, targets[0], nodes.length);
-    }
-
-    removeTrailingComma(nodes);
-    removeTrailingComma(targets);
-
-    if (nodes.length != targets.length) {
-        return;
-    }
-
-    var qs = [];
-    for (var i = 0; i < nodes.length; i++) {
-        if (nodes[i].manq != qs) {
-            clear(nodes[i].manq, nodes[i]);
-            nodes[i].manq = qs;
+    for (var i = 0; i < ids.length; i++) {
+        var id = ids[i];
+        if (!runnings[id]) {
+            callback(id);
+            continue;
         }
-        qs.push(buildQueueItem(nodes[i], targets[i]));
+        callbackQueues[id] = callbackQueues[id] || [];
+        callbackQueues[id].push(callback);
     }
-
-    run(qs);
-};
+}
 
 function buildQueueItem(node, target) {
     var options = checkOptions(target);
@@ -206,60 +215,35 @@ function checkOption(value, type, def) {
     return value;
 }
 
-// node: clear all of this "node" in q
-// or, clear all nodes 
-function clear(queue, node) {
-    if (!queue) {
-        return;
-    }
-
-    for (var i = 0; i < queue.length; i++) {
-        if (!queue[i]) {
-            continue;
-        }
-
-        if (node && node != queue[i].node) {
-            continue;
-        }
-
-        var n = queue[i].node;
-        n.manq = null;
-        queue[i] = null;
-    }
-}
-
-function run(queue, start) {
-    if (!start) {
-        start = 0;
-    }
-
-    if (start >= queue.length) {
-        clear(queue);
-        return;
-    }
-
-    runOne(queue[start], function () {
-        run(queue, ++start);
-    });
-}
-
-function runOne(q, end) {
+function runOne(q) {
     if (!q) {
-        if (end) {
-            end();
-        }
         return;
     }
 
     if ((isCssAvailable() || q.options.nojs)
             && !q.options.debugjs) {
-        runOneCss(q, end);
+        runOneCss(q);
     } else {
-        runOneJs(q, end);
+        runOneJs(q);
     }
 }
 
-function runOneCss(q, end) {
+function notify(q) {
+    var id = q.options.id;
+    delete runnings[id];
+
+    var callbacks = callbackQueues[id];
+    if (!callbacks) {
+        return;
+    }
+
+    for (var i = 0; i < callbacks.length; i++) {
+        callbacks[i](id);
+    }
+    delete callbackQueues[id];
+}
+
+function runOneCss(q) {
     var node = q.node;
 
     var styles = buildStyles(q.target, q.options);
@@ -287,10 +271,8 @@ function runOneCss(q, end) {
         if (q.options.end) {
             q.options.end();
         }
-        
-        if (end) {
-            end();
-        }
+
+        notify(q);
     }
 
     // no support transition, no addEventListener
@@ -310,7 +292,7 @@ var raf = window.requestAnimationFrame
         window.setTimeout(callback, 16);
     };
 
-function runOneJs(q, end) {
+function runOneJs(q) {
     var node = q.node;
     var options = q.options;
     var target = q.target;
@@ -336,11 +318,11 @@ function runOneJs(q, end) {
         }
     }
     
+    node.setAttribute(nodeIdName, options.id);
     var startTime = (new Date()).getTime();
-    var queue = node.manq;
 
     function loop() {
-        if (node.manq != queue) {
+        if (node.getAttribute(nodeIdName) != options.id) {
             return;
         }
 
@@ -352,9 +334,12 @@ function runOneJs(q, end) {
         updateStyles(node, state, target, percent, timing);
 
         if (percent >= 1) {
-            if (end) {
-                end();
+            node.removeAttribute(nodeIdName);
+            if (options.end) {
+                options.end();
             }
+
+            notify(q);
             return;
         }
 

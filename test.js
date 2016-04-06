@@ -65,14 +65,45 @@ addEventListener(reset, "click", function () {
             boxes[i],
             {
                 left: 10,
-                timing: timings[i]
+                timing: timings[i],
+                duration: 500
             }
         );
     }
 });
 
+function makeQueue(nodes, targets, start) {
+    start = start || 0;
+    if (start >= nodes.length) {
+        return;
+    }
+
+    var id = man.transit(nodes[start], targets[start]);
+    man.wait(id, function () {
+        makeQueue(nodes, targets, start + 1);
+    });
+}
+
+function makeQueue2(nodes, targets, start) {
+    start = start || 0;
+    if (start >= nodes.length) {
+        return;
+    }
+
+    var end = targets[start].end;
+    targets[start].end = function () {
+        if (end) {
+            end();
+        }
+
+        makeQueue2(nodes, targets, start + 1);
+    };
+
+    man.transit(nodes[start], targets[start]);
+}
+
 addEventListener(queue, "click", function () {
-    man.transit(
+    makeQueue(
         boxes,
         [
             {

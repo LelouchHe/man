@@ -88,3 +88,16 @@ issue:
 5. `transform` return `matrix` from current styel. don't touch this now. (matrix turns out to be non-animated, we need to extract value first)
 6. since unit may differ between user input and node style, no calc here, just use node style as if they're with same unit
 7. still hard to do complex animation (use "queue" as an example. queued from left to right, and simultaneously from rigth to left)
+
+# complex animation
+
+    var id1 = man.transit(node1, target2);
+    var id2 = man.transit(node2, target2);
+    man.wait([id1, id2], function () {
+        man.transit(node3, target3);
+    });
+
+`man.wait` will wait for any animation of `[id]` is over, so it's all up to user to determine what will happen.
+
+in test.js, i demonstrate 2 ways to queue all animations: use `target.end` or `man.wait`
+
