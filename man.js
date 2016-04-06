@@ -135,7 +135,46 @@ man.def = function (key, value) {
     attr.def = value;
 };
 
-man.transit = function (nodes, targets) {
+var currentId = 0;
+var waitQueue = {};
+
+man.transit = function (node, target, waitIds, waitType) {
+    if (waitIds == null || waitIds == undefined) {
+        waitIds = [-1];
+    } else if (!Array.isArray(waitIds)) {
+        waitIds = [waitIds];
+    }
+
+    if (!waitType) {
+        waitType = "all";
+    }
+
+    var q = buildQueueItem(node, target);
+    q.options.id = currentId++;
+    waitQueue[q.options.id] = [];
+    var waitCount = 0;
+    for (var i = 0; i < waitIds.length; i++) {
+        if (!waitQueue[waitIds[i]]) {
+            continue;
+        }
+        waitQueue[waitIds[i]].push(q);
+        waitCount++;
+    }
+    q.options.waitCount = waitCount;
+    q.options.waitType = waitType;
+
+    tryRun(q);
+
+    return q.options.id;
+}
+
+function tryRun(q) {
+    if (q.options.waitCount == 0) {
+        runOne(q);
+    }
+}
+
+man.queue = function (nodes, targets) {
     if (!Array.isArray(nodes)) {
         nodes = [nodes];
     }
@@ -156,16 +195,13 @@ man.transit = function (nodes, targets) {
         return;
     }
 
-    var qs = [];
+    var id = -1;
+
     for (var i = 0; i < nodes.length; i++) {
-        if (nodes[i].manq != qs) {
-            clear(nodes[i].manq, nodes[i]);
-            nodes[i].manq = qs;
-        }
-        qs.push(buildQueueItem(nodes[i], targets[i]));
+        id = man.transit(nodes[i], targets[i], id);
     }
 
-    run(qs);
+    return id;
 };
 
 function buildQueueItem(node, target) {
@@ -204,43 +240,6 @@ function checkOption(value, type, def) {
     }
     
     return value;
-}
-
-// node: clear all of this "node" in q
-// or, clear all nodes 
-function clear(queue, node) {
-    if (!queue) {
-        return;
-    }
-
-    for (var i = 0; i < queue.length; i++) {
-        if (!queue[i]) {
-            continue;
-        }
-
-        if (node && node != queue[i].node) {
-            continue;
-        }
-
-        var n = queue[i].node;
-        n.manq = null;
-        queue[i] = null;
-    }
-}
-
-function run(queue, start) {
-    if (!start) {
-        start = 0;
-    }
-
-    if (start >= queue.length) {
-        clear(queue);
-        return;
-    }
-
-    runOne(queue[start], function () {
-        run(queue, ++start);
-    });
 }
 
 function runOne(q, end) {
@@ -287,6 +286,8 @@ function runOneCss(q, end) {
         if (q.options.end) {
             q.options.end();
         }
+
+        notify(q.options.id);
         
         if (end) {
             end();
@@ -299,6 +300,19 @@ function runOneCss(q, end) {
     } else {
         transitionEndHandler();
     }
+}
+
+function notify(id) {
+    var queue = waitQueue[id];
+    if (!queue) {
+        return;
+    }
+
+    for (var i = 0; i < queue.length; i++) {
+        queue[i].options.waitCount--;
+        tryRun(queue[i]);
+    }
+    waitQueue[id] = null;
 }
 
 var raf = window.requestAnimationFrame
@@ -337,13 +351,8 @@ function runOneJs(q, end) {
     }
     
     var startTime = (new Date()).getTime();
-    var queue = node.manq;
 
     function loop() {
-        if (node.manq != queue) {
-            return;
-        }
-
         var now = (new Date()).getTime();
         var percent = (now - startTime) / options.duration;
         if (percent >= 1) {
@@ -352,6 +361,12 @@ function runOneJs(q, end) {
         updateStyles(node, state, target, percent, timing);
 
         if (percent >= 1) {
+            if (options.end) {
+                options.end();
+            }
+
+            notify(q.options.id);
+
             if (end) {
                 end();
             }

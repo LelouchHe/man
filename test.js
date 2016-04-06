@@ -72,7 +72,7 @@ addEventListener(reset, "click", function () {
 });
 
 addEventListener(queue, "click", function () {
-    man.transit(
+    man.queue(
         boxes,
         [
             {

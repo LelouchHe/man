@@ -88,3 +88,9 @@ issue:
 5. `transform` return `matrix` from current styel. don't touch this now. (matrix turns out to be non-animated, we need to extract value first)
 6. since unit may differ between user input and node style, no calc here, just use node style as if they're with same unit
 7. still hard to do complex animation (use "queue" as an example. queued from left to right, and simultaneously from rigth to left)
+
+# complex animation
+
+    var id = man.transit(node, target, [waitId], any | all);
+
+that your transit will wait until animations of `[waitId]` are done.
