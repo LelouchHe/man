@@ -80,7 +80,7 @@ function makeQueue(nodes, targets, start) {
 
     var id = man.transit(nodes[start], targets[start]);
     man.wait(id, function () {
-        makeQueue3(nodes, targets, start + 1);
+        makeQueue(nodes, targets, start + 1);
     });
 }
 
