@@ -138,6 +138,7 @@ man.def = function (key, value) {
 // 0 is false, so starts from 1
 var currentId = 1;
 var waitQueues = {};
+var callbackQueues = {};
 var nodeIdName = "data-manid";
 
 man.transit = function (node, target, waitIds, waitType) {
@@ -174,6 +175,25 @@ man.transit = function (node, target, waitIds, waitType) {
     tryRun(q);
 
     return id;
+}
+
+// any of ids is over, callback is invoked
+// callback (id: number): void
+man.wait = function (ids, callback) {
+    if (!Array.isArray(ids)) {
+        ids = [ids];
+    }
+
+    for (var i = 0; i < ids.length; i++) {
+        var id = ids[i];
+        var queue = waitQueues[id]
+        if (!Array.isArray(queue)) {
+            callback(id);
+            continue;
+        }
+        callbackQueues[id] = callbackQueues[id] || [];
+        callbackQueues[id].push(callback);
+    }
 }
 
 function buildQueueItem(node, target) {
@@ -245,7 +265,17 @@ function notify(q) {
         w.options.waitCount--;
         tryRun(w);
     }
-    waitQueues[id] = null;
+    delete waitQueues[id];
+
+    var callbacks = callbackQueues[id];
+    if (!callbacks) {
+        return;
+    }
+
+    for (var i = 0; i < callbacks.length; i++) {
+        callbacks[i](id);
+    }
+    delete callbackQueues[id];
 }
 
 function runOneCss(q) {

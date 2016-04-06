@@ -79,8 +79,38 @@ function makeQueue(nodes, targets) {
     }
 }
 
+function makeQueue2(nodes, targets, start) {
+    start = start || 0;
+    if (start >= nodes.length) {
+        return;
+    }
+
+    var end = targets[start].end;
+    targets[start].end = function () {
+        if (end) {
+            end();
+        }
+
+        makeQueue2(nodes, targets, start + 1);
+    };
+
+    man.transit(nodes[start], targets[start]);
+}
+
+function makeQueue3(nodes, targets, start) {
+    start = start || 0;
+    if (start >= nodes.length) {
+        return;
+    }
+
+    var id = man.transit(nodes[start], targets[start]);
+    man.wait(id, function () {
+        makeQueue3(nodes, targets, start + 1);
+    });
+}
+
 addEventListener(queue, "click", function () {
-    makeQueue(
+    makeQueue3(
         boxes,
         [
             {
