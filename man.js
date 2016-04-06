@@ -138,6 +138,7 @@ man.def = function (key, value) {
 // 0 is false, so starts from 1
 var currentId = 1;
 var waitQueues = {};
+var nodeIdName = "data-manid";
 
 man.transit = function (node, target, waitIds, waitType) {
     if (!waitIds) {
@@ -152,9 +153,7 @@ man.transit = function (node, target, waitIds, waitType) {
 
     var q = buildQueueItem(node, target);
     var id = currentId++;
-
-    // FIXME: add 'manid' to DOM
-    node.manid = q.options.id = id;
+    q.options.id = id;
     waitQueues[id] = [];
 
     var waitCount = 0;
@@ -176,37 +175,6 @@ man.transit = function (node, target, waitIds, waitType) {
 
     return id;
 }
-
-// FIXME: this can be moved out of man
-man.queue = function (nodes, targets) {
-    if (!Array.isArray(nodes)) {
-        nodes = [nodes];
-    }
-    if (!Array.isArray(targets)) {
-        targets = [targets];
-    }
-
-    if (nodes.length == 1) {
-        fill(nodes, nodes[0], targets.length);
-    } else if (targets.length == 1) {
-        fill(targets, targets[0], nodes.length);
-    }
-
-    removeTrailingComma(nodes);
-    removeTrailingComma(targets);
-
-    if (nodes.length != targets.length) {
-        return;
-    }
-
-    var id = -1;
-
-    for (var i = 0; i < nodes.length; i++) {
-        id = man.transit(nodes[i], targets[i], id);
-    }
-
-    return id;
-};
 
 function buildQueueItem(node, target) {
     var options = checkOptions(target);
@@ -354,11 +322,11 @@ function runOneJs(q) {
         }
     }
     
-    var manid = node.manid;
+    node.setAttribute(nodeIdName, options.id);
     var startTime = (new Date()).getTime();
 
     function loop() {
-        if (node.manid != manid) {
+        if (node.getAttribute(nodeIdName) != options.id) {
             return;
         }
 
@@ -370,6 +338,7 @@ function runOneJs(q) {
         updateStyles(node, state, target, percent, timing);
 
         if (percent >= 1) {
+            node.removeAttribute(nodeIdName);
             if (options.end) {
                 options.end();
             }

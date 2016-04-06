@@ -72,8 +72,15 @@ addEventListener(reset, "click", function () {
     }
 });
 
+function makeQueue(nodes, targets) {
+    var id = -1;
+    for (var i = 0; i < nodes.length; i++) {
+        id = man.transit(nodes[i], targets[i], id);
+    }
+}
+
 addEventListener(queue, "click", function () {
-    man.queue(
+    makeQueue(
         boxes,
         [
             {
