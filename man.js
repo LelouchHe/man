@@ -1,5 +1,13 @@
 
-define(function () {
+(function (root, factory) {
+    if (typeof define === "function" && define.amd) {
+        define([], factory);
+    } else if (typeof module === "object" && module.exports) {
+        module.exports = factory();
+    } else {
+        root.man = factory();
+    }
+} (this, function () {
 
 if (!Array.isArray) {
     Array.isArray = function (arg) {
@@ -1186,5 +1194,5 @@ function unmatrix(a) {
 
 return man;
 
-});
+}));
 
