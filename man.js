@@ -138,9 +138,6 @@ man.def = function (key, value) {
 // FIXME: global vars are always not good
 var currentId = 0;
 
-// all running id
-var runnings = {};
-
 // id: [callback]
 var callbackQueues = {};
 
@@ -150,7 +147,7 @@ man.transit = function (node, target) {
     var q = buildQueueItem(node, target);
 
     var id = currentId++;
-    runnings[id] = q;
+    callbackQueues[id] = [];
 
     q.options.id = id;
 
@@ -167,13 +164,12 @@ man.wait = function (ids, callback) {
     }
 
     for (var i = 0; i < ids.length; i++) {
-        var id = ids[i];
-        if (!runnings[id]) {
+        var callbacks = callbackQueues[ids[i]];
+        if (!Array.isArray(callbacks)) {
             callback(id);
             continue;
         }
-        callbackQueues[id] = callbackQueues[id] || [];
-        callbackQueues[id].push(callback);
+        callbacks.push(callback);
     }
 }
 
@@ -230,7 +226,6 @@ function runOne(q) {
 
 function notify(q) {
     var id = q.options.id;
-    delete runnings[id];
 
     var callbacks = callbackQueues[id];
     if (!callbacks) {
