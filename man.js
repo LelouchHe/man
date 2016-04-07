@@ -620,7 +620,7 @@ function buildStateFromTransform(key, value) {
     return transforms;
 }
 
-// FIXME: only deal with Matrix
+// FIXME: only deal with Matrix, need to deal with opacity
 function buildStateFromFilter(key, value) {
     var matrix = [1, 0, 0, 1, 0, 0];
     if (value == "") {
